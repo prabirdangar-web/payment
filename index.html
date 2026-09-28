@@ -468,6 +468,16 @@
                     <input type="text" id="purposeInput" list="purposeDatalist" placeholder="Type to search past purposes, or enter a new description..." required>
                     <datalist id="purposeDatalist"></datalist>
                     <div style="font-size:11px; color:#64748B; margin-top:4px;">Start typing to see matching purposes used before — pick a suggestion or just type a fresh description manually.</div>
+                    <div id="vocAutoBox" style="display:none;margin-top:8px;background:#F0F7FF;border:1px solid #9DBEE6;border-radius:4px;padding:8px 10px;font-size:12.5px;">
+                        <b>✨ Auto-generate VOC purpose &amp; amount</b>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px;">
+                            <select id="vocCat"><option value="both">Honorarium + Recurring</option><option value="hon">Administrative Honorarium only</option><option value="rec">Other Recurring Expenses only</option></select>
+                            <select id="vocFrom"></select> to <select id="vocTo"></select>
+                            <input type="number" id="vocYear" value="2026" style="width:80px;">
+                            <button type="button" class="btn-small" onclick="generateVocPurpose()">Generate</button>
+                        </div>
+                        <div style="color:#64748B;margin-top:4px;">Fills Purpose and Amount from the fixed VOC monthly rates. X+ training materials: May ₹1,950, other months ₹2,000 (edit <code>VOC_AUTO</code> in the script if rates change).</div>
+                    </div>
                 </div>
             </div>
 
@@ -496,37 +506,32 @@
     </div>
 
     <div class="section-title">📋 Step 2: Session Entry Log Verification</div>
+    <div class="btn-group" style="justify-content:flex-start;margin-bottom:8px;">
+        <button type="button" class="btn" style="flex:none;background-color:#16A085;color:#fff;" onclick="autoFetchPaymentsToChequeRegister(false)">➕ Add All Verified Entries to Cheque Register</button>
+    </div>
     <div class="table-container">
         <table>
             <colgroup>
-                <col style="width: 11%;">
-                <col style="width: 11%;">
-                <col style="width: 14%;">
-                <col style="width: 10%;">
                 <col style="width: 9%;">
-                <col style="width: 9%;">
-                <col style="width: 10%;">
                 <col style="width: 13%;">
-                <col style="width: 8%;">
-                <col style="width: 5%;">
+                <col style="width: 40%;">
+                <col style="width: 11%;">
+                <col style="width: 10%;">
+                <col style="width: 17%;">
             </colgroup>
             <thead>
                 <tr>
-                    <th>Fund Category</th>
-                    <th>Linked Account</th>
+                    <th>Fund / Subject</th>
                     <th>Payee</th>
-                    <th>Cheque Mode</th>
-                    <th>Cheque No</th>
-                    <th>Date</th>
-                    <th class="text-right">Amount (₹)</th>
-                    <th>Received From (Source)</th>
-                    <th>Recd./Deposit Date</th>
+                    <th>Purpose (Entry Head)</th>
+                    <th>Cheque No. &amp; Date</th>
+                    <th class="text-right">Payment (₹)</th>
                     <th>Action</th>
                 </tr>
             </thead>
             <tbody id="logTableBody">
                 <tr>
-                    <td colspan="10" style="text-align: center; color: #7f8c8d;">No records generated yet in this active session.</td>
+                    <td colspan="6" style="text-align: center; color: #7f8c8d;">No records generated yet in this active session.</td>
                 </tr>
             </tbody>
         </table>
@@ -902,6 +907,7 @@
     }
 
     function updateAccountDetails() {
+        toggleVocAuto();
         const selectedFund = document.getElementById("fundSelect").value;
         const manualFundBox = document.getElementById("manualFundBox");
         const bankAccField = document.getElementById("bankAcc");
@@ -1801,30 +1807,149 @@ select, input[type="text"], input[type="number"], input[type="date"], textarea {
             .catch(err => alert("Could not delete entry: " + err.message));
     }
 
+    // ---------- VOC auto purpose generator ----------
+    const VOC_AUTO = {
+        honorarium: [
+            ["Prabir Kumar Dangar (Project Co-ordinator)", 650],
+            ["Subhendu Karmakar (Off Staff (Internal))", 325],
+            ["Prakash Sardar (Off Staff (Internal)-Lab Attendant)", 325],
+            ["Tapan Kumar Diyasi (Gr.D Staff (Internal))", 260],
+            ["Niranjan Murmu (Gr.D Staff (Internal))", 260],
+            ["Ram Prasad Layek (Part Time Night Watchman)", 3000]
+        ],
+        monthly: [["VIII+ training materials", 750], ["electricity", 400], ["office expenses", 332]],
+        xPlus: { 4: 1950, 5: 2000, 6: 2000 },   // month index (0=Jan) -> X+ training materials
+        xDefault: 2000
+    };
+    const VOC_MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+    function toggleVocAuto() {
+        const box = document.getElementById("vocAutoBox");
+        if (!box) return;
+        const isVoc = document.getElementById("fundSelect").value === "VOCATIONAL";
+        box.style.display = isVoc ? "block" : "none";
+        if (isVoc && !document.getElementById("vocFrom").options.length) {
+            const opts = VOC_MONTHS.map((m, i) => `<option value="${i}">${m}</option>`).join("");
+            document.getElementById("vocFrom").innerHTML = opts;
+            document.getElementById("vocTo").innerHTML = opts;
+            document.getElementById("vocFrom").value = "4";
+            document.getElementById("vocTo").value = "6";
+        }
+    }
+
+    function generateVocPurpose() {
+        const inr = n => "₹" + Number(n).toLocaleString("en-IN");
+        const joinAnd = arr => arr.length > 1 ? arr.slice(0, -1).join(", ") + " and " + arr[arr.length - 1] : (arr[0] || "");
+        const cat = document.getElementById("vocCat").value;
+        const from = parseInt(document.getElementById("vocFrom").value, 10);
+        const to = parseInt(document.getElementById("vocTo").value, 10);
+        const year = document.getElementById("vocYear").value || "";
+        if (from > to) { alert("'From' month must not be after 'To' month."); return; }
+        const months = [];
+        for (let m = from; m <= to; m++) months.push(m);
+        const perMonth = vals => joinAnd(months.map((m, i) => `${inr(vals[i])} for ${VOC_MONTHS[m]}`));
+
+        const honRate = VOC_AUTO.honorarium.reduce((s, r) => s + r[1], 0);
+        const baseRec = VOC_AUTO.monthly.reduce((s, r) => s + r[1], 0);
+        const xVals = months.map(m => VOC_AUTO.xPlus[m] !== undefined ? VOC_AUTO.xPlus[m] : VOC_AUTO.xDefault);
+        const honVals = months.map(() => honRate);
+        const recVals = xVals.map(x => baseRec + x);
+        const sum = a => a.reduce((s, v) => s + v, 0);
+        const useHon = cat !== "rec", useRec = cat !== "hon";
+        const totVals = months.map((m, i) => (useHon ? honVals[i] : 0) + (useRec ? recVals[i] : 0));
+        const total = sum(totVals);
+
+        const period = joinAnd(months.map(m => VOC_MONTHS[m])) + " " + year;
+        let text = `Payment towards Vocational (VOC) expenses for ${period}, total ${inr(total)} (${perMonth(totVals)})`;
+        const secs = [];
+        if (useHon) {
+            secs.push(`Administrative Honorarium ${inr(sum(honVals))} (${perMonth(honVals)}), comprising the monthly rates: ` +
+                VOC_AUTO.honorarium.map(r => `${r[0]} at ${inr(r[1])}`).join("; "));
+        }
+        if (useRec) {
+            secs.push(`Other Recurring Expenses ${inr(sum(recVals))} (${perMonth(recVals)}), comprising consistent monthly costs of ` +
+                joinAnd(VOC_AUTO.monthly.map(r => `${inr(r[1])} for ${r[0]}`)) +
+                `, alongside X+ training materials of ${perMonth(xVals)}`);
+        }
+        if (secs.length) {
+            text += ", separated into " + (secs.length > 1 ? "two categories: " : "one category: ") +
+                secs.map((s, i) => secs.length > 1 ? `(${"AB"[i]}) ${s}` : s).join("; ") + ".";
+        }
+        document.getElementById("purposeInput").value = text;
+        document.getElementById("expAmount").value = total.toFixed(2);
+    }
+
+    // ---------- Step 2 -> Cheque Register ----------
+    function entryInChequeRegister(entry) {
+        try {
+            return chequeRegLoaded && paymentAlreadyInChequeRegister(entry, String(entry.chqNo || "").trim(), String(entry.account || "").trim());
+        } catch (e) { return false; }
+    }
+
+    function addEntryToChequeRegister(entryId) {
+        if (!currentUser) { alert("Please sign in with the admin account first."); return; }
+        if (!chequeRegLoaded) { alert("Cheque Issue Register is still loading. Please try again in a moment."); return; }
+        const p = sessionEntries.find(en => en.id === entryId);
+        if (!p) { alert("Entry not found."); return; }
+        const chNo = String(p.chqNo || "").trim();
+        const account = String(p.account || "").trim();
+        if (!chNo || !account) { alert("This entry needs a cheque number and linked account first."); return; }
+        if (paymentAlreadyInChequeRegister(p, chNo, account)) { alert("This cheque is already in the Cheque Issue Register."); return; }
+
+        const row = {
+            id: 'payment_creg_' + String(p.id),
+            sl: 0,
+            doi: p.date || todayISO(),
+            acc: account + (p.fund ? ` (${p.fund})` : ""),
+            chNo: chNo,
+            dated: p.date || todayISO(),
+            amount: Number(p.amount || 0).toFixed(2),
+            to: p.payee || "",
+            purpose: p.purpose || "",
+            remarks: "Added from Session Entry Log",
+            inWords: numToWords(p.amount || 0),
+            sourcePaymentId: p.id || "",
+            createdAt: new Date().toISOString(),
+            createdBy: currentUser.email
+        };
+        const merged = [...chequeRegisterEntries, row];
+        merged.sort((a, b) => String(a.doi || "").localeCompare(String(b.doi || "")) || (Number(a.sl) || 0) - (Number(b.sl) || 0));
+        merged.forEach((r, i) => r.sl = i + 1);
+        chequeRegDocRef.set({
+            entries: merged,
+            fetchSuppressedPaymentIds: firebase.firestore.FieldValue.arrayRemove(String(p.id)),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true })
+            .then(() => alert("Added to the Cheque Issue Register (Step 4)."))
+            .catch(err => alert("Could not add to Cheque Register: " + err.message));
+    }
+
     function renderLogTable() {
         updateMdmFlowNote();
         const tbody = document.getElementById("logTableBody");
         if (!sessionEntries.length) {
-            tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: #7f8c8d;">No records generated yet in this active session.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #7f8c8d;">No records generated yet in this active session.</td></tr>`;
             return;
         }
-        tbody.innerHTML = sessionEntries.map(entry => `
+        tbody.innerHTML = sessionEntries.map(entry => {
+            const inReg = entryInChequeRegister(entry);
+            const regBtn = inReg
+                ? `<span style="color:#1E8F4E;font-weight:600;font-size:12px;">✔ In Cheque Register</span>`
+                : `<button type="button" class="btn-danger-row" style="background:#16A085;" ${currentUser ? '' : 'disabled'} onclick="addEntryToChequeRegister('${entry.id}')">➕ Cheque Register</button>`;
+            return `
             <tr>
-                <td><strong>${entry.fund}</strong></td>
-                <td>${entry.account}</td>
+                <td title="${entry.account || ''}"><strong>${entry.fund}</strong></td>
                 <td>${entry.payee}</td>
-                <td>${entry.chqType}</td>
-                <td>${entry.chqNo}</td>
-                <td>${formatDate(entry.date)}</td>
+                <td style="white-space:normal;word-wrap:break-word;font-size:13px;line-height:1.45;">${entry.purpose || ''}</td>
+                <td>${entry.chqNo}<br><span style="font-size:12px;color:#64748B;">${formatDate(entry.date)}</span></td>
                 <td class="text-right">₹${entry.amount}</td>
-                <td>${entry.receivedFrom || '<span style="color:#B0B8C1;">—</span>'}</td>
-                <td>${entry.receivedDate ? formatDate(entry.receivedDate) : '<span style="color:#B0B8C1;">—</span>'}</td>
-                <td style="text-align:center; white-space:nowrap;">
+                <td style="text-align:center;">
+                    <div style="margin-bottom:5px;">${regBtn}</div>
                     <button type="button" class="btn-danger-row" style="background:#2980B9;margin-right:4px;" ${currentUser ? '' : 'disabled'} onclick="editEntry('${entry.id}')">Edit</button>
                     <button type="button" class="btn-danger-row" ${currentUser ? '' : 'disabled'} onclick="deleteEntry('${entry.id}')">Delete</button>
                 </td>
-            </tr>
-        `).join('');
+            </tr>`;
+        }).join('');
     }
 
     // MDM rule: MDM entries do NOT go through the HOI Report / Administrator Order route.
@@ -2324,6 +2449,7 @@ select, input[type="text"], input[type="number"], input[type="date"], textarea {
         document.getElementById("bankName").readOnly = true;
         document.getElementById("bankAcc").placeholder = "Auto-filled";
         document.getElementById("bankName").placeholder = "Auto-filled";
+        toggleVocAuto();
 
         // Always leave the form back in "add a new entry" mode.
         editingEntryId = null;
@@ -2380,6 +2506,7 @@ select, input[type="text"], input[type="number"], input[type="date"], textarea {
             selectedChequeRegIds.forEach(id => { if (!liveIds.has(id)) selectedChequeRegIds.delete(id); });
             populateChequeRegFundFilter();
             renderChequeRegisterTable();
+            renderLogTable();
             const status = document.getElementById("chequeRegImportStatus");
             if (status) {
                 status.textContent = chequeRegSeeded
