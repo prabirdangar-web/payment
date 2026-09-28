@@ -1847,7 +1847,9 @@ select, input[type="text"], input[type="number"], input[type="date"], textarea {
         if (from > to) { alert("'From' month must not be after 'To' month."); return; }
         const months = [];
         for (let m = from; m <= to; m++) months.push(m);
-        const perMonth = vals => joinAnd(months.map((m, i) => `${inr(vals[i])} for ${VOC_MONTHS[m]}`));
+        const perMonth = vals => (vals.length > 1 && vals.every(v => v === vals[0]))
+            ? `${inr(vals[0])} per month`
+            : joinAnd(months.map((m, i) => `${inr(vals[i])} for ${VOC_MONTHS[m]}`));
 
         const honRate = VOC_AUTO.honorarium.reduce((s, r) => s + r[1], 0);
         const baseRec = VOC_AUTO.monthly.reduce((s, r) => s + r[1], 0);
@@ -1860,20 +1862,19 @@ select, input[type="text"], input[type="number"], input[type="date"], textarea {
         const total = sum(totVals);
 
         const period = joinAnd(months.map(m => VOC_MONTHS[m])) + " " + year;
-        let text = `Payment towards Vocational (VOC) expenses for ${period}, total ${inr(total)} (${perMonth(totVals)})`;
-        const secs = [];
-        if (useHon) {
-            secs.push(`Administrative Honorarium ${inr(sum(honVals))} (${perMonth(honVals)}), comprising the monthly rates: ` +
-                VOC_AUTO.honorarium.map(r => `${r[0]} at ${inr(r[1])}`).join("; "));
-        }
-        if (useRec) {
-            secs.push(`Other Recurring Expenses ${inr(sum(recVals))} (${perMonth(recVals)}), comprising consistent monthly costs of ` +
-                joinAnd(VOC_AUTO.monthly.map(r => `${inr(r[1])} for ${r[0]}`)) +
-                `, alongside X+ training materials of ${perMonth(xVals)}`);
-        }
-        if (secs.length) {
-            text += ", separated into " + (secs.length > 1 ? "two categories: " : "one category: ") +
-                secs.map((s, i) => secs.length > 1 ? `(${"AB"[i]}) ${s}` : s).join("; ") + ".";
+        const honText = `the monthly rates: ` + VOC_AUTO.honorarium.map(r => `${r[0]} at ${inr(r[1])}`).join("; ");
+        const recText = `consistent monthly costs of ` +
+            joinAnd(VOC_AUTO.monthly.map(r => `${inr(r[1])} for ${r[0]}`)) +
+            `, alongside X+ training materials of ${perMonth(xVals)}`;
+        let text;
+        if (useHon && useRec) {
+            text = `Payment towards Vocational (VOC) expenses for ${period}, total ${inr(total)} (${perMonth(totVals)}), in two categories: ` +
+                `(A) Administrative Honorarium ${inr(sum(honVals))} (${perMonth(honVals)}), comprising ${honText}; ` +
+                `(B) Other Recurring Expenses ${inr(sum(recVals))} (${perMonth(recVals)}), comprising ${recText}.`;
+        } else if (useHon) {
+            text = `Payment towards Vocational (VOC) Administrative Honorarium for ${period}, total ${inr(total)} (${perMonth(honVals)}), comprising ${honText}.`;
+        } else {
+            text = `Payment towards Vocational (VOC) Other Recurring Expenses for ${period}, total ${inr(total)} (${perMonth(recVals)}), comprising ${recText}.`;
         }
         document.getElementById("purposeInput").value = text;
         document.getElementById("expAmount").value = total.toFixed(2);
