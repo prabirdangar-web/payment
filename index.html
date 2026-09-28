@@ -1340,21 +1340,61 @@ select, input[type="text"], input[type="number"], input[type="date"], textarea {
         { name: "", acc: "", amount: "" }
     ];
 
+    // Cheque no./date typed in Step 1 win; otherwise fall back to the auto values.
+    function letterChequeDefaults(autoNo) {
+        const f = id => (document.getElementById(id) || {}).value || "";
+        return { chqNo: f("chqNo").trim() || autoNo, chqDate: f("chqDate") || todayISO() };
+    }
+
+    // Vocational: each employee's amount = fixed monthly honorarium rate x months chosen in the
+    // Step 1 VOC helper (default May-July). Remarks carry the period. All cells stay editable.
+    function vocLetterAutoRows() {
+        const fromEl = document.getElementById("vocFrom"), toEl = document.getElementById("vocTo");
+        let from = fromEl && fromEl.value !== "" ? parseInt(fromEl.value, 10) : 4;
+        let to = toEl && toEl.value !== "" ? parseInt(toEl.value, 10) : 6;
+        if (from > to) { const t = from; from = to; to = t; }
+        const n = to - from + 1;
+        const yr = (document.getElementById("vocYear") || {}).value || "";
+        const period = (from === to ? VOC_MONTHS[from].slice(0, 3) : VOC_MONTHS[from].slice(0, 3) + "–" + VOC_MONTHS[to].slice(0, 3)) + " " + yr;
+        return VOCATIONAL_DEFAULT_PAYEES.map((r, i) => {
+            const rate = VOC_AUTO.honorarium[i] ? VOC_AUTO.honorarium[i][1] : 0;
+            return { ...r, amount: rate ? String(rate * n) : "", remarks: rate ? `Honorarium ${period}` : "" };
+        });
+    }
+
+    // MDM: fill amounts from this session's MDM entries (matched to the standard payee list);
+    // any other MDM payee goes into the spare rows with A/C left blank to type in.
+    function mdmLetterAutoRows() {
+        const rows = MDM_DEFAULT_PAYEES.map(r => ({ ...r }));
+        const matchers = [/chh?aya|mahila/i, /subhadip/i, /tribhanga/i, /kishor/i];
+        sessionEntries.filter(isMDMEntry).forEach(en => {
+            const amt = parseFloat(en.amount) || 0;
+            const payee = String(en.payee || "");
+            if (!amt || /through/i.test(payee)) return;
+            let idx = matchers.findIndex(rx => rx.test(payee));
+            if (idx < 0) idx = rows.findIndex((r, i) => i >= matchers.length && !r.name);
+            if (idx < 0) return;
+            if (!rows[idx].name) rows[idx].name = payee.toUpperCase();
+            rows[idx].amount = String((parseFloat(rows[idx].amount) || 0) + amt);
+        });
+        return rows;
+    }
+
     function generateVocationalTransferLetter() {
         const fundVal = document.getElementById("fundSelect").value;
         if (fundVal !== "VOCATIONAL") {
             alert('Please select "VOCATIONAL (Voc Fund)" as the Fund Head above before generating this letter.');
             return;
         }
-        const chqNo = nextAutoChequeNo(acc => /voc fund/i.test(acc), 6);
+        const cd = letterChequeDefaults(nextAutoChequeNo(acc => /voc fund/i.test(acc), 6));
         const html = buildTransferLetterHTML({
             bankTitle: "SBI, Taldangra Branch",
             introHtml: `Please transfer and credit the under noted amount against S.B a/c nos. lying with your branch as per allotment from the S.B. a/c No. <strong>11110260145</strong> attached with your bank at Bankura Branch.`,
             acColLabel: "I.S.B. A/C NO",
             nameColLabel: "Name of the Employee",
-            rows: VOCATIONAL_DEFAULT_PAYEES,
-            chqNo,
-            chqDate: todayISO(),
+            rows: vocLetterAutoRows(),
+            chqNo: cd.chqNo,
+            chqDate: cd.chqDate,
             memoDate: todayISO()
         });
         openLetterWindow(html);
@@ -1366,15 +1406,15 @@ select, input[type="text"], input[type="number"], input[type="date"], textarea {
             alert('Please select "MDM (Mid-Day Meal)" as the Fund Head above before generating this letter.');
             return;
         }
-        const chqNo = nextAutoChequeNo(acc => /\(mdm\)/i.test(acc) || /\bmdm\b/i.test(acc), 6);
+        const cd = letterChequeDefaults(nextAutoChequeNo(acc => /\(mdm\)/i.test(acc) || /\bmdm\b/i.test(acc), 6));
         const html = buildTransferLetterHTML({
             bankTitle: "Bankura District Cetral Co-Operative Bank Ltd., Taldangra Branch",
             introHtml: `Please transfer and credit the under noted amount against Bank account nos lying with your branch as per allotment from the S.B. a/c No. <strong>110000315825</strong> ; TALDANGRA FULMATI HIGH SCHOOL MID DAY MEAL attached with your bank at 113-Taldangra Branch.`,
             acColLabel: "Payee A / C NO",
             nameColLabel: "Name of the Payee",
-            rows: MDM_DEFAULT_PAYEES,
-            chqNo,
-            chqDate: todayISO(),
+            rows: mdmLetterAutoRows(),
+            chqNo: cd.chqNo,
+            chqDate: cd.chqDate,
             memoDate: todayISO()
         });
         openLetterWindow(html);
@@ -1406,7 +1446,7 @@ select, input[type="text"], input[type="number"], input[type="date"], textarea {
                         <div class="amtFig"></div>
                         <div class="amtWords"></div>
                     </td>
-                    <td><div class="fitcell rowRemarks" data-lines="2" data-size="13" contenteditable="true" spellcheck="false"></div></td>
+                    <td><div class="fitcell rowRemarks" data-lines="2" data-size="13" contenteditable="true" spellcheck="false">${esc(r.remarks)}</div></td>
                 </tr>`).join('');
 
         return `<!DOCTYPE html>
@@ -1494,11 +1534,11 @@ select, input[type="text"], input[type="number"], input[type="date"], textarea {
     <div class="addr-block">
         <div class="to">To</div>
         <div>The Manager</div>
-        <div><strong>${cfg.bankTitle}</strong></div>
+        <div><strong contenteditable="true" spellcheck="false">${cfg.bankTitle}</strong></div>
     </div>
 
     <div class="sir">Sir,</div>
-    <div class="intro">${cfg.introHtml}</div>
+    <div class="intro" contenteditable="true" spellcheck="false">${cfg.introHtml}</div>
 
     <table class="paytable">
         <thead>
