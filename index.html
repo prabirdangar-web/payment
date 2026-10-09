@@ -392,7 +392,7 @@ details.more{margin-top:6px}details.more summary{cursor:pointer;color:var(--blue
         const pe = (x) => String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
         const fmt = (n) => (Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         const subTitle = v.subTitle || 'SSA/ RMSA, BANKURA';
-        const remHtml = v.remarks ? '<div class="receipt-row" style="margin-top: 2px;"><span class="inline-label">Remarks :</span><span class="inline-fill" style="flex-grow: 1;">' + v.remarks + '</span></div>' : '';
+        const remHtml = v.remarks ? '<div class="receipt-row" style="margin-top: 2px;"><span class="inline-label">Remarks :</span><span class="inline-fill rem-text" style="flex-grow: 1;">' + v.remarks + '</span></div>' : '';
         const sigL = v.sigLeft || 'Headmaster';
         const sigR = v.sigRight || 'Administrator';
         const paySum = multi ? v.payees.reduce((t, x) => t + (parseFloat(x.amount) || 0), 0) : 0;
@@ -444,6 +444,7 @@ details.more{margin-top:6px}details.more summary{cursor:pointer;color:var(--blue
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Payment (Debit Voucher)</title>
 <style>
+${multi ? '@page { size: A4; margin: 0; }' : ''}
 * { box-sizing: border-box; font-family: 'Lucida Bright', 'Lucida Fax', Lucida, Georgia, serif; }
 body { background-color: #f4f6f9; margin: 0; padding: 10px; }
 .voucher-container {
@@ -496,12 +497,27 @@ select, input[type="text"], input[type="number"], input[type="date"], textarea {
 .payee-table th, .payee-table td { border: 1px solid #000; padding: 3px 6px; font-size: 14px; }
 .payee-table th { background-color: #f8f9fa; }
 .payee-table tbody tr { height: 34px; }
-body.multi .receipt-row { line-height: 1.9; font-size: 15px; }
 .payee-table td.pc { text-align: center; font-weight: bold; }
 .payee-table input { font-size: 14px; padding: 2px 4px; border-bottom: none; background: transparent; }
 .payee-table input.pm { text-align: right; }
 .payee-table tfoot td { font-weight: bold; }
 .rec-title { font-size: 15px; font-weight: bold; margin-bottom: 4px; }
+.seal-box { width: 78px; height: 78px; border: 1px dashed #888; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; color: #888; }
+body.multi .voucher-container { padding: 24px 38px; height: 296mm; }
+body.multi .signature-auth-row { align-items: flex-end; }
+body.multi .voucher-container > div:first-child { display: grid; grid-template-columns: 1fr 290px; column-gap: 14px; align-items: start; }
+body.multi .voucher-container > div:first-child > * { grid-column: 1 / -1; }
+body.multi .voucher-container > div:first-child > .meta-section { grid-column: 1; margin-bottom: 8px; }
+body.multi .voucher-container > div:first-child > .grid-split { grid-column: 2; margin-bottom: 8px; }
+body.multi .left-spacer { display: none; }
+body.multi .right-info-table { width: 100%; }
+body.multi .receipt-row { line-height: 1.5; font-size: 14px; }
+body.multi .inline-fill, body.multi .inline-label { font-size: 14px; }
+body.multi .rem-text { font-size: 12.5px; font-weight: normal; line-height: 1.35; }
+body.multi .payee-table tbody tr { height: 30px; }
+body.multi .form-table td { padding: 4px 10px; font-size: 14px; }
+body.multi .purpose-textarea { min-height: 36px; font-size: 14px; }
+body.multi .header h3 { font-size: 17px; }
 body.multi .header { margin-bottom: 10px; padding-bottom: 8px; }
 body.multi .header h2 { font-size: 24px; }
 body.multi .meta-row { margin-bottom: 4px; }
@@ -509,7 +525,7 @@ body.multi .grid-split { margin-bottom: 10px; }
 body.multi .right-info-table td { padding: 3px 8px; font-size: 14px; }
 body.multi .form-table { margin-bottom: 10px; }
 body.multi .form-table td { padding: 6px 10px; font-size: 15px; }
-body.multi .signature-auth-row { margin-top: 18px; margin-bottom: 8px; }
+body.multi .signature-auth-row { margin-top: 12px; margin-bottom: 6px; }
 body.multi .receipt-section { padding-top: 12px; }
 @media print {
     body { background: none; padding: 0; margin: 0; }
@@ -623,6 +639,7 @@ body.multi .receipt-section { padding-top: 12px; }
 
         <div class="signature-auth-row">
             <div class="sig-box">${sigL}</div>
+            <div class="seal-box">SEAL</div>
             <div class="sig-box">${sigR}</div>
         </div>
     </div>
