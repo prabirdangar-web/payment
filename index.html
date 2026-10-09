@@ -143,7 +143,7 @@ details.more{margin-top:6px}details.more summary{cursor:pointer;color:var(--blue
       <button class="btn" onclick="gen('admn')">🏛 Admn Order</button>
       <button class="btn gold" onclick="gen('suite')">📑 All four</button></div>
     <div class="grp"><span class="lab">Payment papers</span>
-      <button class="btn green" onclick="genVoucher()">🧾 SSM Voucher</button>
+      <button class="btn green" onclick="genVoucher()">🧾 Debit Voucher (SSM / MDM)</button>
       <button class="btn green" onclick="genVoc()">🏦 VOC Letter</button>
       <button class="btn green" onclick="genMdm()">🍽 MDM Letter</button>
       <button class="btn green" onclick="gen('slips')">🎫 Pay Slips</button>
@@ -372,6 +372,41 @@ details.more{margin-top:6px}details.more summary{cursor:pointer;color:var(--blue
 
 
     function buildSSMDebitVoucherHTML(v) {
+        const multi = Array.isArray(v.payees) && v.payees.length > 0;
+        const pe = (x) => String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        const fmt = (n) => (Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const subTitle = v.subTitle || 'SSA/ RMSA, BANKURA';
+        const paySum = multi ? v.payees.reduce((t, x) => t + (parseFloat(x.amount) || 0), 0) : 0;
+        const payeeRowsHtml = multi ? v.payees.map((x, i) =>
+            '<tr><td class="pc">' + (i + 1) + '</td>' +
+            '<td><input type="text" class="pn" value="' + pe(x.name) + '"></td>' +
+            '<td><input type="text" class="pa" value="' + pe(x.acc) + '"></td>' +
+            '<td><input type="number" step="any" min="0" class="pm" value="' + pe(x.amount) + '" oninput="recalcPayees()"></td>' +
+            '<td class="sg"></td></tr>').join('') : '';
+        const multiReceiptHtml = `<div class="receipt-section multi-rec">
+        <div class="rec-title">Received the amount set against my name, by cheque bearing No. <span id="recChequeDetails">${v.chqDetails}</span>, as detailed below:</div>
+        <table class="payee-table">
+            <thead><tr><th style="width:7%;">Sl.</th><th>Name of Payee</th><th style="width:22%;">A/C No.</th><th style="width:16%;">Amount (Rs.)</th><th style="width:25%;">Signature of Recipient</th></tr></thead>
+            <tbody>${payeeRowsHtml}</tbody>
+            <tfoot><tr><td colspan="3" style="text-align:right;">TOTAL</td><td id="payTotal" style="text-align:right;">${paySum ? fmt(paySum) : ''}</td><td></td></tr></tfoot>
+        </table>
+    </div>`;
+        const singleReceiptHtml = `    <div class="receipt-section">
+        <div class="receipt-row">
+            <span class="inline-label">Received a sum of Rs.</span>
+            <span class="inline-fill" id="recAmountNum" style="min-width: 90px;">${v.amountNum}</span>
+            <span class="inline-fill" id="recAmountWords" style="flex-grow: 1; margin-left: 10px;">${v.amountWords}</span>
+        </div>
+        <div class="receipt-row" style="margin-top: 10px;">
+            <span class="inline-label">by cheque bearing No.</span>
+            <span class="inline-fill" id="recChequeDetails" style="flex-grow: 1;">${v.chqDetails}</span>
+        </div>
+
+        <div class="receipt-signature">
+            <div class="line"></div>
+            <div class="text">Signature of Recipient</div>
+        </div>
+    </div>`;
         return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -427,6 +462,24 @@ select, input[type="text"], input[type="number"], input[type="date"], textarea {
 .no-print { position: fixed; top: 20px; right: 20px; z-index: 9999; }
 .print-btn { background-color: #111; color: white; border: 2px solid #fff; padding: 14px 40px; font-size: 16px; font-weight: bold; border-radius: 4px; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.3); transition: all 0.2s ease; }
 .print-btn:hover { background-color: #333; transform: scale(1.05); }
+.payee-table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+.payee-table th, .payee-table td { border: 1px solid #000; padding: 3px 6px; font-size: 14px; }
+.payee-table th { background-color: #f8f9fa; }
+.payee-table tbody tr { height: 36px; }
+.payee-table td.pc { text-align: center; font-weight: bold; }
+.payee-table input { font-size: 14px; padding: 2px 4px; border-bottom: none; background: transparent; }
+.payee-table input.pm { text-align: right; }
+.payee-table tfoot td { font-weight: bold; }
+.rec-title { font-size: 15px; font-weight: bold; margin-bottom: 4px; }
+body.multi .header { margin-bottom: 10px; padding-bottom: 8px; }
+body.multi .header h2 { font-size: 24px; }
+body.multi .meta-row { margin-bottom: 4px; }
+body.multi .grid-split { margin-bottom: 10px; }
+body.multi .right-info-table td { padding: 3px 8px; font-size: 14px; }
+body.multi .form-table { margin-bottom: 10px; }
+body.multi .form-table td { padding: 6px 10px; font-size: 15px; }
+body.multi .signature-auth-row { margin-top: 18px; margin-bottom: 8px; }
+body.multi .receipt-section { padding-top: 12px; }
 @media print {
     body { background: none; padding: 0; margin: 0; }
     .voucher-container { border: 2px solid #000; width: 210mm; height: 297mm; box-shadow: none; padding: 40px 45px; margin: 0; page-break-inside: avoid; }
@@ -437,13 +490,15 @@ select, input[type="text"], input[type="number"], input[type="date"], textarea {
         background-color: transparent !important; border-bottom: none !important; padding: 2px 0 !important;
     }
     select { appearance: none; -webkit-appearance: none; }
-    .form-table td, .right-info-table td { background-color: transparent !important; border: 1px solid #000 !important; }
+    .form-table td, .right-info-table td, .payee-table th { background-color: transparent !important; border: 1px solid #000 !important; }
+    .payee-table td { border: 1px solid #000 !important; }
+    .payee-table input { border: none !important; }
     .no-print { display: none !important; }
     textarea { overflow: visible !important; height: auto !important; }
 }
 </style>
 </head>
-<body data-school-mode="DEFAULT" data-head-mode="DEFAULT">
+<body class="${multi ? 'multi' : ''}" data-school-mode="DEFAULT" data-head-mode="DEFAULT">
 
 <div class="no-print">
     <button class="print-btn" id="triggerPrintBtn">Print Voucher Sheet</button>
@@ -453,7 +508,7 @@ select, input[type="text"], input[type="number"], input[type="date"], textarea {
     <div>
         <div class="header">
             <h2>PAYMENT (DEBIT VOUCHER)</h2>
-            <h3>SSA/ RMSA, BANKURA</h3>
+            <h3>${subTitle}</h3>
         </div>
 
         <div class="meta-section">
@@ -514,6 +569,7 @@ select, input[type="text"], input[type="number"], input[type="date"], textarea {
                         <option value="Exterior School Building Painting Grant">Exterior School Building Painting Grant</option>
                         <option value="TWINING OF SCHOOL PROGRAMME GRANT">TWINING OF SCHOOL PROGRAMME GRANT</option>
                         <option value="ANANDA PARISAR QUIZ">ANANDA PARISAR QUIZ</option>
+                        <option value="Mid Day Meal (MDM)">Mid Day Meal (MDM)</option>
                         <option value="MANUAL">-- Type Custom Head Manual --</option>
                     </select>
                     <input type="text" id="customHeadAccount" style="display:none; margin-top:8px;" placeholder="Enter custom Head/Miscellaneous entry...">
@@ -527,7 +583,7 @@ select, input[type="text"], input[type="number"], input[type="date"], textarea {
             <tr>
                 <td>Amount of Cash/Cheque Rs.</td>
                 <td>
-                    <input type="number" id="amountNum" value="${v.amountNum}" oninput="updateAmountWords()" style="font-weight: bold;">
+                    <input type="number" id="amountNum" value="${v.amountNum}" oninput="updateAmountWords()" ${multi ? 'readonly' : ''} style="font-weight: bold;">
                     <span class="amount-word-display" id="amountWords">${v.amountWords}</span>
                 </td>
             </tr>
@@ -540,22 +596,7 @@ select, input[type="text"], input[type="number"], input[type="date"], textarea {
         </div>
     </div>
 
-    <div class="receipt-section">
-        <div class="receipt-row">
-            <span class="inline-label">Received a sum of Rs.</span>
-            <span class="inline-fill" id="recAmountNum" style="min-width: 90px;">${v.amountNum}</span>
-            <span class="inline-fill" id="recAmountWords" style="flex-grow: 1; margin-left: 10px;">${v.amountWords}</span>
-        </div>
-        <div class="receipt-row" style="margin-top: 10px;">
-            <span class="inline-label">by cheque bearing No.</span>
-            <span class="inline-fill" id="recChequeDetails" style="flex-grow: 1;">${v.chqDetails}</span>
-        </div>
-
-        <div class="receipt-signature">
-            <div class="line"></div>
-            <div class="text">Signature of Recipient</div>
-        </div>
-    </div>
+    ${multi ? multiReceiptHtml : singleReceiptHtml}
 </div>
 
 <script>
@@ -565,7 +606,11 @@ select, input[type="text"], input[type="number"], input[type="date"], textarea {
         element.style.height = "auto";
         element.style.height = (element.scrollHeight) + "px";
     }
-    window.addEventListener('load', function() { autoGrow(document.getElementById('purpose')); });
+    window.addEventListener('load', function() {
+        autoGrow(document.getElementById('purpose'));
+        var hv = ${JSON.stringify(v.headAccount || '')};
+        if (hv) document.getElementById('headAccount').value = hv;
+    });
 
     function toggleManualSchool(selectElement) {
         const manualInput = document.getElementById('manualSchoolInput');
@@ -616,6 +661,14 @@ select, input[type="text"], input[type="number"], input[type="date"], textarea {
         return word.trim();
     }
 
+    function recalcPayees() {
+        var t = 0;
+        document.querySelectorAll('.pm').forEach(function(i) { t += parseFloat(i.value) || 0; });
+        document.getElementById('amountNum').value = t ? String(Math.round(t * 100) / 100) : '';
+        updateAmountWords();
+        document.getElementById('payTotal').innerText = t ? t.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
+    }
+
     function updateAmountWords() {
         const numInput = document.getElementById('amountNum').value;
         const targetWordsDisplay = document.getElementById('amountWords');
@@ -624,12 +677,12 @@ select, input[type="text"], input[type="number"], input[type="date"], textarea {
         if (numInput) {
             const words = "Rupees " + numberToWords(parseInt(numInput)) + " Only";
             targetWordsDisplay.innerText = words;
-            targetRecWords.innerText = words;
-            targetRecNum.innerText = numInput;
+            if (targetRecWords) targetRecWords.innerText = words;
+            if (targetRecNum) targetRecNum.innerText = numInput;
         } else {
             targetWordsDisplay.innerText = "Rupees Only";
-            targetRecWords.innerText = "Rupees Only";
-            targetRecNum.innerText = "";
+            if (targetRecWords) targetRecWords.innerText = "Rupees Only";
+            if (targetRecNum) targetRecNum.innerText = "";
         }
     }
 <\/script>
@@ -1126,9 +1179,14 @@ function gen(type){const rows=selRows();if(!rows.length){alert('Tick one or more
   openDoc(t[0],t[1]())}
 
 /* ================= SSM voucher + VOC / MDM bank letters (auto-fetched from ticked cheques) ================= */
-function genVoucher(){const rows=selRows().filter(r=>/\bssm\b/i.test(r.acc));if(!rows.length){alert('Tick one or more SSM cheques first.');return}
+function genVoucher(){const rows=selRows().filter(r=>/\bssm\b/i.test(r.acc)||isMDM(r));if(!rows.length){alert('Tick one or more SSM or MDM cheques first.');return}
   rows.forEach((r,i)=>setTimeout(()=>{const a=Number(r.amount)||0;const cd=String(r.chNo||'')+(r.dated?' dt. '+fd(r.dated):'');
-    openLetterWindow(buildSSMDebitVoucherHTML({voucherDate:r.dated||todayISO(),toWhomPaid:esc(r.to),purpose:esc(r.purpose),amountNum:a||'',amountWords:esc(numToWords(Math.floor(a))),chqDetails:esc(cd),chqType:'A/C Payee Only'}))},i*500));
+    const v={voucherDate:r.dated||todayISO(),toWhomPaid:esc(r.to),purpose:esc(r.purpose),amountNum:a||'',amountWords:esc(numToWords(Math.floor(a))),chqDetails:esc(cd),chqType:'A/C Payee Only'};
+    if(isMDM(r)){/* MDM = several payees: list each payee with amount + signature column */
+      let p=mdmRows([r]).filter(x=>x.name&&parseFloat(x.amount));
+      if(!p.length)p=MDM_DEFAULT_PAYEES.slice(0,4).map(x=>({...x,amount:''}));
+      Object.assign(v,{payees:p,toWhomPaid:'Various Payees (as per list below)',subTitle:'MID DAY MEAL (MDM), BANKURA',headAccount:'Mid Day Meal (MDM)'})}
+    openLetterWindow(buildSSMDebitVoucherHTML(v))},i*500));
   if(rows.length>1)toast(`Opening ${rows.length} vouchers — allow pop-ups if blocked`)}
 function letterCD(R){return {chqNo:String(R[0].chNo||''),chqDate:R[0].dated||todayISO()}}
 function monthsIn(t){return VOC_MONTHS.map((m,i)=>new RegExp('\\b'+m+'\\b','i').test(t)?i:-1).filter(i=>i>=0)}
