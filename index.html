@@ -391,6 +391,7 @@ details.more{margin-top:6px}details.more summary{cursor:pointer;color:var(--blue
         const pe = (x) => String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
         const fmt = (n) => (Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         const subTitle = v.subTitle || 'SSA/ RMSA, BANKURA';
+        const remHtml = v.remarks ? '<div class="receipt-row" style="margin-top: 2px;"><span class="inline-label">Remarks :</span><span class="inline-fill" style="flex-grow: 1;">' + v.remarks + '</span></div>' : '';
         const sigL = v.sigLeft || 'Headmaster';
         const sigR = v.sigRight || 'Administrator';
         const paySum = multi ? v.payees.reduce((t, x) => t + (parseFloat(x.amount) || 0), 0) : 0;
@@ -411,6 +412,7 @@ details.more{margin-top:6px}details.more summary{cursor:pointer;color:var(--blue
             <span class="inline-fill" id="recChequeDetails" style="flex-grow: 1;">${v.chqDetails}</span>
             <span class="inline-label" style="margin-left:8px;">by the undersigned payees, as detailed below:</span>
         </div>
+        ${remHtml}
         <table class="payee-table">
             <thead><tr><th style="width:7%;">Sl.</th><th>Name of Payee</th><th style="width:22%;">A/C No.</th><th style="width:16%;">Amount (Rs.)</th><th style="width:25%;">Signature of Recipient</th></tr></thead>
             <tbody>${payeeRowsHtml}</tbody>
@@ -427,6 +429,7 @@ details.more{margin-top:6px}details.more summary{cursor:pointer;color:var(--blue
             <span class="inline-label">by cheque bearing No.</span>
             <span class="inline-fill" id="recChequeDetails" style="flex-grow: 1;">${v.chqDetails}</span>
         </div>
+        ${remHtml}
 
         <div class="receipt-signature">
             <div class="line"></div>
@@ -1146,11 +1149,12 @@ function details(rows){let h='<div class="pts">';rows.forEach((r,i)=>{const n=i+
 <p class="sp"><b>${n}a.</b> Payee: <b>${esc(r.to)}</b></p>
 <p class="sp"><b>${n}b.</b> Purpose: ${esc(r.purpose)}</p>
 <p class="sp"><b>${n}c.</b> Cheque No. <b>${esc(r.chNo)}</b> dated <b>${fd(r.dated)}</b> &nbsp;·&nbsp; <b>${n}d.</b> Amount: <b>₹ ${money(r.amount)}</b> (${esc(numToWords(Math.floor(Number(r.amount)||0)))})</p>`});return h+'</div>'}
-function tbl(rows){const funds=[...new Set(rows.map(r=>fundName(r.acc)))];let g=0,b='';
-  rows.forEach((r,i)=>{const a=Number(r.amount)||0;g+=a;b+=`<tr><td class="c">${i+1}</td><td class="c">${i+1}a–${i+1}d</td><td><b>${esc(fundName(r.acc))}</b><br>A/C ${esc(acNo(r.acc))}</td><td>${esc(r.to)}</td><td>${esc(r.chNo)}<br>dt. ${fd(r.dated)}</td><td class="r"><b>${money(a)}</b></td></tr>`});
-  if(funds.length>1)funds.forEach(f=>{const s=rows.filter(r=>fundName(r.acc)===f).reduce((t,r)=>t+(Number(r.amount)||0),0);b+=`<tr><td colspan="5" class="r">Sub-total — ${esc(f)}</td><td class="r">${money(s)}</td></tr>`});
-  b+=`<tr><td colspan="5" class="r"><b>GRAND TOTAL</b></td><td class="r"><b>${money(g)}</b></td></tr>`;
-  return `<table><colgroup><col style="width:6%"><col style="width:10%"><col style="width:22%"><col style="width:26%"><col style="width:18%"><col style="width:18%"></colgroup><thead><tr><th>Sl</th><th>Ref. Pt.</th><th>Fund Head / A/C No.</th><th>Payee</th><th>Cheque No. &amp; Date</th><th>Amount (₹)</th></tr></thead><tbody>${b}</tbody></table><div class="words">Total in words: ${esc(numToWords(Math.floor(g)))}</div>`}
+function tbl(rows,withRem){const hasRem=!!withRem&&rows.some(r=>String(r.remarks||'').trim());const funds=[...new Set(rows.map(r=>fundName(r.acc)))];let g=0,b='';
+  rows.forEach((r,i)=>{const a=Number(r.amount)||0;g+=a;b+=`<tr><td class="c">${i+1}</td><td class="c">${i+1}a–${i+1}d</td><td><b>${esc(fundName(r.acc))}</b><br>A/C ${esc(acNo(r.acc))}</td><td>${esc(r.to)}</td><td>${esc(r.chNo)}<br>dt. ${fd(r.dated)}</td><td class="r"><b>${money(a)}</b></td>${hasRem?`<td>${esc(r.remarks||'')}</td>`:''}</tr>`});
+  if(funds.length>1)funds.forEach(f=>{const s=rows.filter(r=>fundName(r.acc)===f).reduce((t,r)=>t+(Number(r.amount)||0),0);b+=`<tr><td colspan="5" class="r">Sub-total — ${esc(f)}</td><td class="r">${money(s)}</td>${hasRem?'<td></td>':''}</tr>`});
+  b+=`<tr><td colspan="5" class="r"><b>GRAND TOTAL</b></td><td class="r"><b>${money(g)}</b></td>${hasRem?'<td></td>':''}</tr>`;
+  const cg=hasRem?'<col style="width:5%"><col style="width:8%"><col style="width:17%"><col style="width:21%"><col style="width:16%"><col style="width:15%"><col style="width:18%">':'<col style="width:6%"><col style="width:10%"><col style="width:22%"><col style="width:26%"><col style="width:18%"><col style="width:18%">';
+  return `<table><colgroup>${cg}</colgroup><thead><tr><th>Sl</th><th>Ref. Pt.</th><th>Fund Head / A/C No.</th><th>Payee</th><th>Cheque No. &amp; Date</th><th>Amount (₹)</th>${hasRem?'<th>Remarks</th>':''}</tr></thead><tbody>${b}</tbody></table><div class="words">Total in words: ${esc(numToWords(Math.floor(g)))}</div>`}
 const memTbl=(h)=>`<table class="mem"><colgroup><col style="width:6%"><col style="width:34%"><col style="width:32%"><col style="width:28%"></colgroup><thead><tr><th>Sl</th><th>Name</th><th>Desig.</th><th>${h}</th></tr></thead><tbody>${MEMBERS.map((m,i)=>`<tr><td class="c">${i+1}</td><td><b>${m[0]}</b></td><td>${m[1]}</td><td></td></tr>`).join('')}</tbody></table>`;
 const MDM_NOTE='In respect of the Mid-Day Meal (MDM) fund, the Finance Sub-Committee, after checking the bills and vouchers, resolved to sanction the expenditure and to issue the cheque(s) directly at this meeting, as per the details above. These MDM payments need not be forwarded to the Head of Institution (HOI) or the Administrator for any separate report or order.';
 
@@ -1165,14 +1169,14 @@ function dRes(rows){const m=rows.map((r,i)=>isMDM(r)?i+1:0).filter(Boolean);
 ${meta([`Meeting No.: <b>${ref('fin')}</b>`,`Held on: <b>${fd(refs.finDate)}</b>`],[`Time: <b>${ftime(refs.finTime)}</b>`,`Venue: <b>HM's Office</b>`,`Chair: <b>HM</b>`])}
 <h3>Members present</h3>${memTbl('Signature')}
 <p class="j">The meeting started under the Chairmanship of the Headmaster, who welcomed all members. The bills and vouchers placed by the HM were examined and the Committee unanimously resolved to approve the following payments:</p>
-${details(rows)}${tbl(rows)}
+${details(rows)}${tbl(rows,true)}
 ${m.length?`<p class="j"><b>MDM (Point${m.length>1?'s':''} ${m.join(', ')}):</b> ${MDM_NOTE}</p>`:''}
 ${rows.some(r=>!isMDM(r))?`<p class="j">Payments other than MDM are recommended to the HOI for report and to the Administrator for approval.</p>`:''}
 <div class="sign"><div>Prepared By<br><br>______________</div><div>Checked By<br><br>______________</div><div>Prabir Kumar Dangar<br>HM / Chairperson</div></div></section>`}
 function dHoi(rows){return `<section class="doc">${lh()}<h2 class="dt">HEAD OF INSTITUTION (HOI) REPORT</h2>
 ${meta([`HOI Report No.: <b>${ref('hoi')}</b>`],[`Based on Finance Sub-Committee Meeting: <b>${ref('fin')}</b>`])}
 <p class="j">As per the recommendation of the Finance Sub-Committee, the payments below are placed for passing. The bills, vouchers, cheque book and Cheque Issue Register have been checked and are placed before the Administrator for approval.</p>
-${details(rows)}${tbl(rows)}
+${details(rows)}${tbl(rows,true)}
 <div class="sign"><div>Verified By<br><br>______________</div><div>Prabir Kumar Dangar<br>HOI</div></div></section>`}
 function dAdmn(rows){return `<section class="doc">${lh()}<h2 class="dt">ADMINISTRATOR APPROVAL ORDER</h2>
 ${meta([`Order No.: <b>${ref('admn')}</b>`],[`Finance Sub-Committee: <b>${ref('fin')}</b>`,`HOI Report: <b>${ref('hoi')}</b>`])}
@@ -1208,7 +1212,7 @@ function gen(type){const rows=selRows();if(!rows.length){alert('Tick one or more
 /* ================= SSM voucher + VOC / MDM bank letters (auto-fetched from ticked cheques) ================= */
 function genVoucher(){const rows=selRows().filter(r=>/\bssm\b/i.test(r.acc)||isMDM(r));if(!rows.length){alert('Tick one or more SSM or MDM cheques first.');return}
   rows.forEach((r,i)=>setTimeout(()=>{const a=Number(r.amount)||0;const cd=String(r.chNo||'')+(r.dated?' dt. '+fd(r.dated):'');
-    const v={voucherDate:r.dated||todayISO(),toWhomPaid:esc(r.to),purpose:esc(r.purpose),amountNum:a||'',amountWords:esc(numToWords(Math.floor(a))),chqDetails:esc(cd),chqType:'A/C Payee Only'};
+    const v={voucherDate:r.dated||todayISO(),toWhomPaid:esc(r.to),purpose:esc(r.purpose),amountNum:a||'',amountWords:esc(numToWords(Math.floor(a))),chqDetails:esc(cd),chqType:'A/C Payee Only',remarks:esc(r.remarks||'')};
     if(isMDM(r)){/* MDM = several payees: list each payee with amount + signature column */
       let p=mdmRows([r]).filter(x=>x.name&&parseFloat(x.amount));
       if(!p.length)p=MDM_DEFAULT_PAYEES.slice(0,4).map(x=>({...x,amount:''}));
@@ -1236,14 +1240,15 @@ function mdmParse(t){t=String(t||'');const out=[];const m=t.split(/payee-?wise\s
   if(m.length>1){m[1].split(';').forEach(seg=>{const x=seg.trim().match(/^(.*?)[\s:\-–]*(?:₹|Rs\.?|INR)\s*([0-9][0-9,]*(?:\.\d+)?)\s*\.?$/i);if(x&&x[1].trim())out.push([x[1].trim(),parseFloat(x[2].replace(/,/g,''))])});if(out.length)return out}
   MDM_MATCH.forEach((re,i)=>{const x=t.match(new RegExp('('+re.source+')[^0-9₹]{0,40}?(?:₹|Rs\\.?|INR)?\\s*([0-9][0-9,]*(?:\\.\\d+)?)','i'));if(x)out.push([MDM_SHOW[i],parseFloat(x[2].replace(/,/g,''))])});
   return out}
-function mdmRows(R){const defs=MDM_DEFAULT_PAYEES.slice(0,4).map(r=>({...r,amount:''}));const extra=[];
+function mdmRows(R){const defs=MDM_DEFAULT_PAYEES.slice(0,4).map(r=>({...r,amount:'',remarks:''}));const extra=[];let RM='';
+  const rmk=o=>{if(RM&&!o.remarks.includes(RM))o.remarks=o.remarks?o.remarks+'; '+RM:RM;return o};
   const add=(name,a)=>{const i=MDM_MATCH.findIndex(x=>x.test(name));
-    if(i>=0){defs[i].amount=String((parseFloat(defs[i].amount)||0)+a);return}
-    const k=extra.find(x=>x.name.toLowerCase()===name.toLowerCase());if(k)k.amount=String((parseFloat(k.amount)||0)+a);else extra.push({name:name.toUpperCase(),acc:'',amount:String(a)})};
-  R.forEach(en=>{const a=parseFloat(en.amount)||0,p=String(en.to||'').trim();
+    if(i>=0){defs[i].amount=String((parseFloat(defs[i].amount)||0)+a);rmk(defs[i]);return}
+    const k=extra.find(x=>x.name.toLowerCase()===name.toLowerCase());if(k){k.amount=String((parseFloat(k.amount)||0)+a);rmk(k)}else extra.push(rmk({name:name.toUpperCase(),acc:'',amount:String(a),remarks:''}))};
+  R.forEach(en=>{const a=parseFloat(en.amount)||0,p=String(en.to||'').trim();RM=String(en.remarks||'').trim();
     if(/through|various/i.test(p)){mdmParse((en.purpose||'')+' '+(en.remarks||'')).forEach(([n,x])=>{if(x)add(n,x)});return}
     if(a)add(p,a)});
-  const out=[...defs.filter(d=>d.amount),...extra];while(out.length<4)out.push({name:'',acc:'',amount:''});return out}
+  const out=[...defs.filter(d=>d.amount),...extra];while(out.length<4)out.push({name:'',acc:'',amount:'',remarks:''});return out}
 function genVoc(){const R=selRows().filter(r=>/voc/i.test(r.acc));if(!R.length){alert('Tick a VOC cheque first.');return}generateVocationalTransferLetter(R)}
 function genMdm(){const R=selRows().filter(isMDM);if(!R.length){alert('Tick one or more MDM cheques first.');return}generateMDMTransferLetter(R)}
 
