@@ -923,7 +923,7 @@ function todayISO(){const d=new Date();return `${d.getFullYear()}-${String(d.get
 let user=null,entries=[],refs={},selected=new Set(),editId=null,delPass=null,lastRefsJson='';
 const regRef=db.doc('tfhs/chequeRegisterEntries');
 const SCHOOL='TALDANGRA FULMATI HIGH SCHOOL (H.S.)';
-const MEMBERS=[['Sri Prabir Kumar Dangar','Headmaster (President & Convenor)'],['Sri Mahim Kumar Paine','AT & Staff Council Secretary (Member)'],['Sri Swapan Kumar Maji','Assistant Headmaster (Member - Former)'],['Sri Tapas Kundu','AT & Assistant Staff Council Secretary (Member)'],['Sri Tapan Kumar Diyasi','Group-D Staff (Non-Teaching Representative)']];
+const MEMBERS=[['Prabir Kumar Dangar','HM (Convenor)'],['Mahim Kumar Paine','AT (Secy, Mem)'],['Swapan Kumar Maji','AHM (Mem)'],['Tapas Kundu','AT (Asst Secy, Mem)'],['Tapan Kumar Diyasi','Gr-D (Mem)']];
 const PAYEES=['Sital Chhaya Mahila SGSY','Subhadip Chakraborty','Tribhanga Khan','Kishor Ghosh','Friends Offset Printing','Soumen Nandi','Ramprasad Layek','Through Bank Transfer','To Various Payees through HM'];
 const fundName=a=>{const m=String(a||'').match(/\(([^)]+)\)|\[([^\]]+)\]/);const f=m?(m[1]||m[2]).replace(/\bfund\b/i,'').trim():String(a||'').trim();return f||'GENERAL'};
 const acNo=a=>(String(a||'').match(/\d{6,}/)||[String(a||'')])[0];
@@ -1033,84 +1033,93 @@ function printRegister(){const rows=visibleRows().sort((a,b)=>(Number(a.sl)||0)-
   w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Cheque Issue Register</title><style>${css}</style></head><body><button class="bar" onclick="print()">🖨 Print</button><h2>CHEQUE ISSUE REGISTER</h2><p>${SCHOOL} — Entries: ${rows.length} — Total: ₹${money(t)}</p><table><colgroup><col style="width:3.5%"><col style="width:6.5%"><col style="width:9%"><col style="width:6.5%"><col style="width:6.5%"><col style="width:8.5%"><col style="width:13%"><col style="width:38%"><col style="width:8.5%"></colgroup><thead><tr><th>Sl</th><th>DOI</th><th>A/C No.</th><th>Ch No.</th><th>Dated</th><th>Amount ₹</th><th>To</th><th>Particulars</th><th>Remarks</th></tr></thead><tbody>${body}</tbody></table></body></html>`);w.document.close()}
 
 /* ================= document builders (A4 portrait, Arial, min 10pt) ================= */
-const DOC_CSS=`@page{size:A4 portrait;margin:14mm 14mm 14mm 20mm}*{box-sizing:border-box}
-body{margin:0;background:#E4E9F0;font-family:Arial,'Lucida Bright',sans-serif;font-size:11pt;line-height:1.5;color:#000}
+const DOC_CSS=`@page{size:A4 portrait;margin:12mm 12mm 12mm 18mm}*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{margin:0;background:#DDE3EC;font-family:Arial,'Lucida Bright',sans-serif;font-size:10.5pt;line-height:1.35;color:#000}
 .bar{position:fixed;top:10px;right:14px;background:#0B2545;color:#fff;padding:8px 12px;border-radius:8px;font-size:10pt;z-index:9}
 .bar button{font:inherit;font-weight:700;padding:6px 14px;border:0;border-radius:6px;background:#EEB902;cursor:pointer;margin-right:8px}
-.sheet{width:210mm;margin:12px auto;background:#fff;padding:14mm 14mm 14mm 20mm;outline:none}
+.sheet{width:210mm;margin:12px auto;background:#fff;padding:12mm 12mm 12mm 18mm;outline:none;box-shadow:0 2px 14px rgba(0,0,0,.18)}
 .doc{break-after:page}.doc:last-child{break-after:auto}
-.lh{text-align:center;border-bottom:2px solid #000;padding-bottom:6px;margin-bottom:10px}.lh b{display:block;font-size:16pt}.lh span{display:block;font-size:10pt}
-h2.dt{text-align:center;font-size:13pt;text-decoration:underline;margin:10px 0}h3{font-size:11pt;margin:14px 0 6px}
-.meta{display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;border:1px solid #000;padding:8px 10px;margin-bottom:10px;font-size:10.5pt}
-.j{text-align:justify}.pts p{margin:2px 0}.pts .pt{margin-top:9px}.pts .sp{padding-left:24px;text-align:justify}
-table{width:100%;border-collapse:collapse;table-layout:fixed;margin:10px 0;font-size:10pt}
-th,td{border:1px solid #000;padding:5px 6px;vertical-align:top;word-wrap:break-word}th{background:#eee;text-align:center}
+.lh{text-align:center;border-bottom:3px double #000;padding-bottom:4px;margin-bottom:8px}.lh b{display:block;font-size:17pt;letter-spacing:.8px;color:#0B2545}.lh span{display:block;font-size:10pt}
+h2.dt{text-align:center;font-size:12.5pt;letter-spacing:.6px;margin:8px 0;padding:4px 0;border-top:1.5px solid #000;border-bottom:1.5px solid #000;background:#EEF2F7}
+h3{font-size:10.5pt;margin:8px 0 3px;text-transform:uppercase;letter-spacing:.4px;color:#0B2545;border-bottom:1px solid #888}
+.meta{border:1px solid #000;padding:3px 8px;margin-bottom:6px;font-size:10.5pt}.meta div{display:flex;justify-content:space-between;gap:12px;white-space:nowrap;padding:1px 0}
+p{margin:4px 0}.j{text-align:justify}.pts p{margin:1px 0}.pts .pt{margin-top:5px}.pts .sp{padding-left:22px;text-align:justify}
+table{width:100%;border-collapse:collapse;table-layout:fixed;margin:6px 0;font-size:10pt}
+th,td{border:1px solid #000;padding:3px 5px;vertical-align:top;word-wrap:break-word}th{background:#E6EBF2;text-align:center}
+table.mem td{padding:7px 5px;white-space:nowrap;overflow:hidden}
 thead{display:table-header-group}tr{break-inside:avoid}.r{text-align:right;white-space:nowrap}.c{text-align:center}
-.sign{display:flex;justify-content:space-between;margin-top:38px;font-weight:700;font-size:10.5pt}.sign div{text-align:center;min-width:48mm}
-.words{border:1px solid #000;padding:6px 10px;font-weight:700;font-size:10.5pt}
+.sign{display:flex;justify-content:space-between;margin-top:26px;font-weight:700;font-size:10.5pt}.sign div{text-align:center;min-width:46mm}
+.words{border:1px solid #000;padding:4px 8px;font-weight:700;font-size:10.5pt;background:#F6F8FB}
 .slip{border:2px solid #000;padding:5mm 7mm;margin-bottom:7mm;break-inside:avoid;font-size:10.5pt;line-height:1.4}
 .bn{display:inline-block;border:2px solid #000;border-radius:50%/100%;padding:2px 28px;font-weight:700;letter-spacing:2px}
 .cp{border-top:1px dashed #000;margin-top:8px;padding-top:6px;font-size:10pt}.slip p{margin:3px 0}
-@media print{body{background:#fff}.bar{display:none}.sheet{width:auto;margin:0;padding:0}}`;
+.full{min-height:252mm;display:flex;flex-direction:column}.foot{margin-top:auto;display:flex;gap:8mm;align-items:flex-end}.foot table{flex:1}
+.seal{width:40mm;height:40mm;border:1.5px dashed #000;border-radius:50%;display:grid;place-items:center;font-size:10pt;color:#444;flex:none;margin-bottom:6px}
+@media print{body{background:#fff}.bar{display:none}.sheet{width:auto;margin:0;padding:0;box-shadow:none}}`;
 function openDoc(title,inner){const w=window.open('','_blank');if(!w){alert('Please allow pop-ups to view / print.');return}
   w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title}</title><style>${DOC_CSS}</style></head><body><div class="bar"><button onclick="print()">🖨 Print</button>Click any text to edit before printing</div><div class="sheet" contenteditable="true" spellcheck="false">${inner}</div></body></html>`);w.document.close()}
-const lh=()=>`<div class="lh"><b>${SCHOOL}</b><span>Index No. U1-083 · UDISE 19132104401 · H.S. Code 114071 · P.O. &amp; Block: Taldangra · Dist.: Bankura · PIN 722152</span><span>E-mail: highschooltaldangrafulmati@gmail.com · Contact: 03243-265114</span></div>`;
-const sign=(a,b)=>`<div class="sign"><div>Prepared By<br><br>__________________</div><div>${a}<br>${b}</div></div>`;
+const lh=()=>`<div class="lh"><b>${SCHOOL}</b><span>P.O. &amp; Block: Taldangra · Dist.: Bankura · PIN 722152</span></div>`;
+const sign=(a,b)=>`<div class="sign"><div>Prepared By<br><br>______________</div><div>${a}<br>${b}</div></div>`;
+const meta=(a,b)=>`<div class="meta"><div>${a.map(x=>`<span>${x}</span>`).join('')}</div><div>${b.map(x=>`<span>${x}</span>`).join('')}</div></div>`;
 function details(rows){let h='<div class="pts">';rows.forEach((r,i)=>{const n=i+1;
   h+=`<p class="pt"><b>${n}.</b> <b>${esc(fundName(r.acc))} Fund</b> — A/C No. ${esc(acNo(r.acc))}</p>
-<p class="sp"><b>${n}a.</b> Payee / Beneficiary: <b>${esc(r.to)}</b></p>
+<p class="sp"><b>${n}a.</b> Payee: <b>${esc(r.to)}</b></p>
 <p class="sp"><b>${n}b.</b> Purpose: ${esc(r.purpose)}</p>
-<p class="sp"><b>${n}c.</b> Cheque No. <b>${esc(r.chNo)}</b> dated <b>${fd(r.dated)}</b></p>
-<p class="sp"><b>${n}d.</b> Amount: <b>₹ ${money(r.amount)}</b> (${esc(numToWords(Math.floor(Number(r.amount)||0)))})</p>`});return h+'</div>'}
+<p class="sp"><b>${n}c.</b> Cheque No. <b>${esc(r.chNo)}</b> dated <b>${fd(r.dated)}</b> &nbsp;·&nbsp; <b>${n}d.</b> Amount: <b>₹ ${money(r.amount)}</b> (${esc(numToWords(Math.floor(Number(r.amount)||0)))})</p>`});return h+'</div>'}
 function tbl(rows){const funds=[...new Set(rows.map(r=>fundName(r.acc)))];let g=0,b='';
   rows.forEach((r,i)=>{const a=Number(r.amount)||0;g+=a;b+=`<tr><td class="c">${i+1}</td><td class="c">${i+1}a–${i+1}d</td><td><b>${esc(fundName(r.acc))}</b><br>A/C ${esc(acNo(r.acc))}</td><td>${esc(r.to)}</td><td>${esc(r.chNo)}<br>dt. ${fd(r.dated)}</td><td class="r"><b>${money(a)}</b></td></tr>`});
   if(funds.length>1)funds.forEach(f=>{const s=rows.filter(r=>fundName(r.acc)===f).reduce((t,r)=>t+(Number(r.amount)||0),0);b+=`<tr><td colspan="5" class="r">Sub-total — ${esc(f)}</td><td class="r">${money(s)}</td></tr>`});
   b+=`<tr><td colspan="5" class="r"><b>GRAND TOTAL</b></td><td class="r"><b>${money(g)}</b></td></tr>`;
   return `<table><colgroup><col style="width:6%"><col style="width:10%"><col style="width:22%"><col style="width:26%"><col style="width:18%"><col style="width:18%"></colgroup><thead><tr><th>Sl</th><th>Ref. Pt.</th><th>Fund Head / A/C No.</th><th>Payee</th><th>Cheque No. &amp; Date</th><th>Amount (₹)</th></tr></thead><tbody>${b}</tbody></table><div class="words">Total in words: ${esc(numToWords(Math.floor(g)))}</div>`}
-const memTbl=(h)=>`<table><colgroup><col style="width:8%"><col style="width:36%"><col style="width:34%"><col style="width:22%"></colgroup><thead><tr><th>Sl</th><th>Name of Member</th><th>Designation</th><th>${h}</th></tr></thead><tbody>${MEMBERS.map((m,i)=>`<tr><td class="c">${i+1}</td><td><b>${m[0]}</b></td><td>${m[1]}</td><td><br></td></tr>`).join('')}</tbody></table>`;
+const memTbl=(h)=>`<table class="mem"><colgroup><col style="width:6%"><col style="width:34%"><col style="width:32%"><col style="width:28%"></colgroup><thead><tr><th>Sl</th><th>Name</th><th>Desig.</th><th>${h}</th></tr></thead><tbody>${MEMBERS.map((m,i)=>`<tr><td class="c">${i+1}</td><td><b>${m[0]}</b></td><td>${m[1]}</td><td></td></tr>`).join('')}</tbody></table>`;
 const MDM_NOTE='In respect of the Mid-Day Meal (MDM) fund, the Finance Sub-Committee, after checking the bills and vouchers, resolved to sanction the expenditure and to issue the cheque(s) directly at this meeting, as per the details above. These MDM payments need not be forwarded to the Head of Institution (HOI) or the Administrator for any separate report or order.';
 
 function dNotice(rows){const funds=[...new Set(rows.map(r=>fundName(r.acc)))].join(', ');
   return `<section class="doc">${lh()}<h2 class="dt">NOTICE — FINANCE SUB-COMMITTEE MEETING CALL</h2>
-<div class="meta"><div>Meeting No.: <b>${ref('fin')}</b></div><div>Date of Issue: <b>${fd(todayISO())}</b></div><div>Meeting Date: <b>${fd(refs.finDate)}</b></div><div>Time: <b>${ftime(refs.finTime)}</b></div></div>
-<p class="j">All members of the Finance Sub-Committee of ${SCHOOL} are hereby informed that a meeting will be held on <b>${fd(refs.finDate)}</b> at <b>${ftime(refs.finTime)}</b> in the Headmaster's Office Room, to examine the bills and vouchers placed by the Headmaster and to sanction the payments detailed below. Your presence is requested.</p>
-<p><b>Agenda:</b></p><ol><li>Review of the bills / vouchers placed by the HM.</li><li>Clearance of payment against bills / vouchers under fund head(s): <b>${esc(funds)}</b>.</li><li>Any other matter with the permission of the Chair.</li></ol>
-<h3>Payments proposed (details)</h3>${details(rows)}${tbl(rows)}
-<h3>Acknowledgement of members</h3>${memTbl('Signature with Date')}${sign('Sri Prabir Kumar Dangar','Headmaster &amp; Convenor')}</section>`}
+${meta([`Meeting No.: <b>${ref('fin')}</b>`,`Date of Issue: <b>${fd(todayISO())}</b>`],[`Meeting Date: <b>${fd(refs.finDate)}</b>`,`Time: <b>${ftime(refs.finTime)}</b>`,`Venue: <b>HM's Office</b>`])}
+<p class="j">All members of the Finance Sub-Committee are requested to attend the meeting on <b>${fd(refs.finDate)}</b> at <b>${ftime(refs.finTime)}</b> to examine the bills / vouchers placed by the HM and to sanction payment under fund head(s): <b>${esc(funds)}</b>.</p>
+<h3>Payments proposed</h3>${details(rows)}${tbl(rows)}
+<h3>Members — acknowledgement</h3>${memTbl('Signature &amp; Date')}${sign('Prabir Kumar Dangar','HM &amp; Convenor')}</section>`}
 function dRes(rows){const m=rows.map((r,i)=>isMDM(r)?i+1:0).filter(Boolean);
-  return `<section class="doc">${lh()}<h2 class="dt">RESOLUTIONS ADOPTED — FINANCE SUB-COMMITTEE MEETING</h2>
-<div class="meta"><div>Meeting No.: <b>${ref('fin')}</b></div><div>Held on: <b>${fd(refs.finDate)}</b></div><div>Time: <b>${ftime(refs.finTime)}</b></div><div>Venue: <b>Headmaster's Office Room</b></div></div>
+  return `<section class="doc">${lh()}<h2 class="dt">RESOLUTIONS ADOPTED — FINANCE SUB-COMMITTEE</h2>
+${meta([`Meeting No.: <b>${ref('fin')}</b>`,`Held on: <b>${fd(refs.finDate)}</b>`],[`Time: <b>${ftime(refs.finTime)}</b>`,`Venue: <b>HM's Office</b>`,`Chair: <b>HM</b>`])}
 <h3>Members present</h3>${memTbl('Signature')}
-<p class="j">The meeting started under the Chairmanship of Sri Prabir Kumar Dangar, Headmaster. At the onset, the Chairperson welcomed all present. All bills and vouchers placed by the HM regarding payments of various expenditures out of the respective institutional funds were examined. After due discussion the Committee unanimously resolved to approve the following payments:</p>
-<h3>Payments approved (details)</h3>${details(rows)}${tbl(rows)}
+<p class="j">The meeting started under the Chairmanship of the Headmaster, who welcomed all members. The bills and vouchers placed by the HM were examined and the Committee unanimously resolved to approve the following payments:</p>
+${details(rows)}${tbl(rows)}
 ${m.length?`<p class="j"><b>MDM (Point${m.length>1?'s':''} ${m.join(', ')}):</b> ${MDM_NOTE}</p>`:''}
-${rows.some(r=>!isMDM(r))?`<p class="j">The remaining payments (other than MDM) are recommended to the Head of Institution for report and to the Administrator for approval.</p>`:''}
-<div class="sign"><div>Prepared By<br><br>__________________</div><div>Checked By<br><br>__________________</div><div>Sri Prabir Kumar Dangar<br>Headmaster / Chairperson</div></div></section>`}
+${rows.some(r=>!isMDM(r))?`<p class="j">Payments other than MDM are recommended to the HOI for report and to the Administrator for approval.</p>`:''}
+<div class="sign"><div>Prepared By<br><br>______________</div><div>Checked By<br><br>______________</div><div>Prabir Kumar Dangar<br>HM / Chairperson</div></div></section>`}
 function dHoi(rows){return `<section class="doc">${lh()}<h2 class="dt">HEAD OF INSTITUTION (HOI) REPORT</h2>
-<div class="meta"><div>HOI Report No.: <b>${ref('hoi')}</b></div><div>Date: <b>${fd(refs.hoiDate)}</b></div><div style="grid-column:span 2">Based on Finance Sub-Committee Meeting: <b>${ref('fin')}</b></div></div>
-<p class="j">As per the recommendation of the Finance Sub-Committee, the payments detailed below are placed for passing. The corresponding bills, vouchers, cheque book and the Cheque Issue Register have been checked and are placed before the Administrator for approval.</p>
-<h3>Payments reported (details)</h3>${details(rows)}${tbl(rows)}
-<div class="sign"><div>Verified By<br><br>__________________</div><div>Sri Prabir Kumar Dangar<br>Head of Institution (HOI)</div></div></section>`}
+${meta([`HOI Report No.: <b>${ref('hoi')}</b>`],[`Based on Finance Sub-Committee Meeting: <b>${ref('fin')}</b>`])}
+<p class="j">As per the recommendation of the Finance Sub-Committee, the payments below are placed for passing. The bills, vouchers, cheque book and Cheque Issue Register have been checked and are placed before the Administrator for approval.</p>
+${details(rows)}${tbl(rows)}
+<div class="sign"><div>Verified By<br><br>______________</div><div>Prabir Kumar Dangar<br>HOI</div></div></section>`}
 function dAdmn(rows){return `<section class="doc">${lh()}<h2 class="dt">ADMINISTRATOR APPROVAL ORDER</h2>
-<div class="meta"><div>Order No.: <b>${ref('admn')}</b></div><div>Order Date: <b>${fd(refs.admnDate)}</b></div><div>Finance Sub-Committee: <b>${ref('fin')}</b></div><div>HOI Report: <b>${ref('hoi')}</b></div></div>
-<p class="j">On the recommendation of the Finance Sub-Committee and the report of the Head of Institution (HOI), the following cheques are passed and approved for payment to the respective beneficiaries as detailed below.</p>
-<h3>Payments approved (details)</h3>${details(rows)}${tbl(rows)}
-<div class="sign"><div>Prepared By<br><br>__________________</div><div><b>ADMINISTRATOR</b><br>${SCHOOL}</div></div></section>`}
-function dSlips(rows){return rows.map((r,i)=>{const sl=String(i+1).padStart(2,'0'),mdm=isMDM(r),a=Number(r.amount)||0;
-  const refs_=mdm?`Meeting: ${ref('fin')}`:`Meeting: ${ref('fin')}<br>HOI: ${ref('hoi')} &nbsp; Admn Order: ${ref('admn')}`;
+${meta([`Order No.: <b>${ref('admn')}</b>`],[`Finance Sub-Committee: <b>${ref('fin')}</b>`,`HOI Report: <b>${ref('hoi')}</b>`])}
+<p class="j">On the recommendation of the Finance Sub-Committee and the report of the HOI, the following cheques are passed and approved for payment to the respective beneficiaries.</p>
+${details(rows)}${tbl(rows)}
+<div class="sign"><div>Prepared By<br><br>______________</div><div><b>ADMINISTRATOR</b><br>${SCHOOL}</div></div></section>`}
+function dMdmSlip(rows){let g=0;const body=rows.map((r,i)=>{const a=Number(r.amount)||0;g+=a;return `<tr><td class="c">${i+1}</td><td class="c">${i+1}a–${i+1}d</td><td><b>${esc(r.to)}</b></td><td>${esc(r.chNo)}<br>dt. ${fd(r.dated)}</td><td class="r"><b>${money(a)}</b></td><td>${esc(numToWords(Math.floor(a)))}</td><td></td></tr>`}).join('');
+  return `<section class="doc full">${lh()}<h2 class="dt">PAYMENT ORDER — MDM FUND (COMMON)</h2>
+${meta([`Meeting No.: <b>${ref('fin')}</b>`,`Payment Order Sl.: <b>MDM / ${rows.length} cheque(s)</b>`],[`Debit A/C: <b>MDM Fund — A/C No. ${esc(acNo(rows[0].acc))}</b>`,`Issued by: <b>Finance Sub-Committee</b>`])}
+<p class="j">The Finance Sub-Committee, after checking the bills and vouchers, has sanctioned the MDM payments below and ordered issue of the cheque(s) to the payees. No separate HOI Report / Administrator Order is required.</p>
+${details(rows)}
+<table><colgroup><col style="width:5%"><col style="width:9%"><col style="width:19%"><col style="width:14%"><col style="width:12%"><col style="width:23%"><col style="width:18%"></colgroup><thead><tr><th>Sl</th><th>Ref. Pt.</th><th>Payee</th><th>Cheque No. &amp; Date</th><th>Amount (₹)</th><th>Amount in words</th><th>Recipient's Signature</th></tr></thead><tbody>${body}<tr><td colspan="4" class="r"><b>TOTAL</b></td><td class="r"><b>${money(g)}</b></td><td colspan="2"><b>${esc(numToWords(Math.floor(g)))}</b></td></tr></tbody></table>
+<div class="foot"><div style="flex:1"><h3>Finance Sub-Committee — signatures</h3>${memTbl('Signature')}</div><div class="seal">SEAL</div></div></section>`}
+function dSlips(rows){return rows.map((r,i)=>{const sl=String(i+1).padStart(2,'0'),a=Number(r.amount)||0;
   return `<div class="slip"><div class="c"><span class="bn">PAYMENT ORDER</span></div>
-<div class="c"><b>${SCHOOL}</b><br>Bankura, West Bengal · 03243-265114</div>
-<p style="border:1px solid #000;padding:4px 8px;margin-top:6px"><b>Sl. ${sl}</b> &nbsp; ${refs_}</p>
+<div class="c"><b>${SCHOOL}</b><br>P.O. &amp; Block: Taldangra · Dist.: Bankura · PIN 722152</div>
+<p style="border:1px solid #000;padding:3px 8px;margin-top:6px"><b>Sl. ${sl}</b> &nbsp; Meeting: ${ref('fin')}<br>HOI: ${ref('hoi')} &nbsp; Admn Order: ${ref('admn')}</p>
 <p>Debit Fund Account: <b>${esc(fundName(r.acc))} Fund</b> (A/C No. ${esc(acNo(r.acc))})</p>
 <p>Authorised Beneficiary: <b>${esc(r.to)}</b></p>
 <table><colgroup><col style="width:52%"><col style="width:26%"><col style="width:22%"></colgroup><thead><tr><th>Particulars</th><th>Cheque No. &amp; Date</th><th>Amount (₹)</th></tr></thead><tbody><tr><td>${esc(r.purpose)}</td><td>${esc(r.chNo)}<br>dt. ${fd(r.dated)}</td><td class="r"><b>${money(a)}</b></td></tr><tr><td colspan="3"><b>In words:</b> ${esc(numToWords(Math.floor(a)))}</td></tr></tbody></table>
-<div class="sign" style="margin-top:22px"><div>${mdm?'Finance Sub-Committee':'Administrator'}</div><div>Headmaster</div></div>
+<div class="sign" style="margin-top:22px"><div>Administrator</div><div>Headmaster</div></div>
 <div class="cp"><div class="c"><b>RECIPIENT'S ACKNOWLEDGEMENT</b></div>Received Cheque No. <b>${esc(r.chNo)}</b> dated ${fd(r.dated)} for <b>₹ ${money(a)}</b>.<div class="sign" style="margin-top:20px"><div></div><div>Recipient's Signature</div></div></div></div>`}).join('')}
 
 function gen(type){const rows=selRows();if(!rows.length){alert('Tick one or more cheques in the register first.');return}
   const main=rows.filter(r=>!isMDM(r));
   if((type==='hoi'||type==='admn')&&!main.length){alert('MDM cheques need no HOI Report / Administrator Order — the Finance Sub-Committee sanctions them. Tick cheques of other funds.');return}
-  if(type==='slips')return openDoc('Payment Order Slips',dSlips(rows));
+  if(type==='slips'){const m=rows.filter(isMDM),o=rows.filter(r=>!isMDM(r));return openDoc('Payment Orders',(m.length?dMdmSlip(m):'')+(o.length?`<section class="doc">${dSlips(o)}</section>`:''))}
   const t={notice:['Meeting Call',()=>dNotice(rows)],res:['Resolution',()=>dRes(rows)],hoi:['HOI Report',()=>dHoi(main)],admn:['Administrator Order',()=>dAdmn(main)],
     suite:['Document Suite',()=>dNotice(rows)+dRes(rows)+(main.length?dHoi(main)+dAdmn(main):'')]}[type];
   if(type==='suite'&&!main.length)toast('MDM only — HOI Report & Admn Order skipped');
@@ -1127,9 +1136,11 @@ function vocRows(R){const r=R[0],idx=monthsIn(r.purpose);let n=idx.length,period
   if(n){const yr=(String(r.purpose).match(/\b(20\d\d)\b/)||[])[1]||String(r.dated||'').slice(0,4);period=(n===1?VOC_MONTHS[idx[0]].slice(0,3):VOC_MONTHS[idx[0]].slice(0,3)+'–'+VOC_MONTHS[idx[n-1]].slice(0,3))+' '+yr}
   else{n=parseInt(prompt('No month found in the purpose. How many months of honorarium?','1'),10)||1}
   return VOCATIONAL_DEFAULT_PAYEES.map((p,i)=>{const rate=VOC_AUTO.honorarium[i]?VOC_AUTO.honorarium[i][1]:0;return {...p,amount:rate?String(rate*n):'',remarks:rate?`Honorarium ${period}`.trim():''}})}
-function mdmRows(R){const rows=MDM_DEFAULT_PAYEES.map(r=>({...r}));const mt=[/chh?aya|mahila/i,/subhadip/i,/tribhanga/i,/kishor/i];
-  R.forEach(en=>{const a=parseFloat(en.amount)||0,p=String(en.to||'');if(!a||/through/i.test(p))return;let i=mt.findIndex(x=>x.test(p));
-    if(i<0)i=rows.findIndex((r,k)=>k>=mt.length&&!r.name);if(i<0)return;if(!rows[i].name)rows[i].name=p.toUpperCase();rows[i].amount=String((parseFloat(rows[i].amount)||0)+a)});return rows}
+function mdmRows(R){const defs=MDM_DEFAULT_PAYEES.slice(0,4).map(r=>({...r,amount:''}));const mt=[/chh?aya|mahila/i,/subhadip/i,/tribhanga/i,/kishor/i];const extra=[];
+  R.forEach(en=>{const a=parseFloat(en.amount)||0,p=String(en.to||'').trim();if(!a||/through|various/i.test(p))return;const i=mt.findIndex(x=>x.test(p));
+    if(i>=0){defs[i].amount=String((parseFloat(defs[i].amount)||0)+a);return}
+    const k=extra.find(x=>x.name.toLowerCase()===p.toLowerCase());if(k)k.amount=String((parseFloat(k.amount)||0)+a);else extra.push({name:p.toUpperCase(),acc:'',amount:String(a)})});
+  const out=[...defs.filter(d=>d.amount),...extra];while(out.length<4)out.push({name:'',acc:'',amount:''});return out}
 function genVoc(){const R=selRows().filter(r=>/voc/i.test(r.acc));if(!R.length){alert('Tick a VOC cheque first.');return}generateVocationalTransferLetter(R)}
 function genMdm(){const R=selRows().filter(isMDM);if(!R.length){alert('Tick one or more MDM cheques first.');return}generateMDMTransferLetter(R)}
 
