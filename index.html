@@ -1164,14 +1164,14 @@ function dNotice(rows){const funds=[...new Set(rows.map(r=>fundName(r.acc)))].jo
   return `<section class="doc">${lh()}<h2 class="dt">NOTICE — FINANCE SUB-COMMITTEE MEETING CALL</h2>
 ${meta([`Meeting No.: <b>${ref('fin')}</b>`,`Date of Issue: <b>${fd(todayISO())}</b>`],[`Meeting Date: <b>${fd(refs.finDate)}</b>`,`Time: <b>${ftime(refs.finTime)}</b>`,`Venue: <b>HM's Office</b>`])}
 <p class="j">All members of the Finance Sub-Committee are requested to attend the meeting on <b>${fd(refs.finDate)}</b> at <b>${ftime(refs.finTime)}</b> to examine the bills / vouchers placed by the HM and to sanction payment under fund head(s): <b>${esc(funds)}</b>.</p>
-<h3>Payments proposed</h3>${details(rows)}${tbl(rows)}${remNote(rows)}
+<h3>Payments proposed</h3>${details(rows)}${tbl(rows)}
 <h3>Members — acknowledgement</h3>${memTbl('Signature &amp; Date')}${sign('Prabir Kumar Dangar','HM &amp; Convenor')}</section>`}
 function dRes(rows){const m=rows.map((r,i)=>isMDM(r)?i+1:0).filter(Boolean);
   return `<section class="doc">${lh()}<h2 class="dt">RESOLUTIONS ADOPTED — FINANCE SUB-COMMITTEE</h2>
 ${meta([`Meeting No.: <b>${ref('fin')}</b>`,`Held on: <b>${fd(refs.finDate)}</b>`],[`Time: <b>${ftime(refs.finTime)}</b>`,`Venue: <b>HM's Office</b>`,`Chair: <b>HM</b>`])}
 <h3>Members present</h3>${memTbl('Signature')}
 <p class="j">The meeting started under the Chairmanship of the Headmaster, who welcomed all members. The bills and vouchers placed by the HM were examined and the Committee unanimously resolved to approve the following payments:</p>
-${details(rows)}${tbl(rows)}${remNote(rows)}
+${details(rows)}${tbl(rows)}
 ${m.length?`<p class="j"><b>MDM (Point${m.length>1?'s':''} ${m.join(', ')}):</b> ${MDM_NOTE}</p>`:''}
 ${rows.some(r=>!isMDM(r))?`<p class="j">Payments other than MDM are recommended to the HOI for report and to the Administrator for approval.</p>`:''}
 <div class="sign"><div>Prepared By<br><br>______________</div><div>Checked By<br><br>______________</div><div>Prabir Kumar Dangar<br>HM / Chairperson</div></div></section>`}
