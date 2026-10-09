@@ -48,6 +48,7 @@ table.reg td{border-bottom:1px solid var(--line);padding:7px 6px;vertical-align:
 table.reg tr:nth-child(even) td{background:#F8FAFC}table.reg tr.sel td{background:#FFF3C4!important}
 .r{text-align:right;white-space:nowrap}.c{text-align:center}
 .words{color:var(--mut);font-style:italic;font-size:13.5px;margin-top:3px}
+.remline{font-size:13px;margin-top:3px;color:#333}
 .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:10px 20px;border-radius:30px;display:none;z-index:99}
 details.more{margin-top:6px}details.more summary{cursor:pointer;color:var(--blue);font-weight:700}
 @media(max-width:820px){.stats{grid-template-columns:1fr 1fr}.c2,.c3,.c4,.c6,.c8{grid-column:span 12}.refs{grid-template-columns:1fr}}
@@ -174,9 +175,9 @@ details.more{margin-top:6px}details.more summary{cursor:pointer;color:var(--blue
       <button class="btn sm" onclick="printRegister()">🖨 Print (A4 landscape)</button>
     </div>
     <div class="tw"><table class="reg">
-      <colgroup><col style="width:3%"><col style="width:4%"><col style="width:6.5%"><col style="width:9%"><col style="width:6.5%"><col style="width:6.5%"><col style="width:8.5%"><col style="width:12%"><col style="width:33%"><col style="width:5%"><col style="width:6%"></colgroup>
-      <thead><tr><th><input type="checkbox" id="all" onchange="selVisible(this.checked)"></th><th>Sl</th><th>DOI</th><th>A/C No.</th><th>Ch No.</th><th>Dated</th><th>Amount ₹</th><th>To</th><th>Particulars</th><th>Rem.</th><th></th></tr></thead>
-      <tbody id="body"><tr><td colspan="11" class="c">Loading…</td></tr></tbody>
+      <colgroup><col style="width:3%"><col style="width:4%"><col style="width:6.5%"><col style="width:9%"><col style="width:6.5%"><col style="width:6.5%"><col style="width:8.5%"><col style="width:12%"><col style="width:38%"><col style="width:6%"></colgroup>
+      <thead><tr><th><input type="checkbox" id="all" onchange="selVisible(this.checked)"></th><th>Sl</th><th>DOI</th><th>A/C No.</th><th>Ch No.</th><th>Dated</th><th>Amount ₹</th><th>To</th><th>Particulars</th><th></th></tr></thead>
+      <tbody id="body"><tr><td colspan="10" class="c">Loading…</td></tr></tbody>
     </table></div>
   </div>
 </div>
@@ -1101,8 +1102,8 @@ function selVisible(on){if(on===undefined)on=true;visibleRows().forEach(r=>on?se
 function clearSel(){selected.clear();render()}
 function render(){const rows=visibleRows();let tot=0;
   $('body').innerHTML=rows.length?rows.map(e=>{tot+=Number(e.amount)||0;const s=selected.has(e.id);
-    return `<tr class="${s?'sel':''}"><td class="c"><input type="checkbox" ${s?'checked':''} onchange="tick('${e.id}',this.checked)"></td><td>${esc(e.sl)}</td><td>${fd(e.doi)}</td><td>${esc(e.acc)}</td><td>${esc(e.chNo)}</td><td>${fd(e.dated)}</td><td class="r">${money(e.amount)}</td><td>${esc(e.to)}</td><td>${esc(e.purpose)}<div class="words">${esc(e.inWords||numToWords(e.amount))}</div></td><td>${esc(e.remarks)}</td><td class="c" style="white-space:nowrap"><button class="btn sm" ${user?'':'disabled'} onclick="editEntry('${e.id}')">✎</button> <button class="btn red sm" ${user?'':'disabled'} onclick="delEntry('${e.id}')">🗑</button></td></tr>`}).join('')
-    :'<tr><td colspan="11" class="c">No entries yet — add your first cheque above.</td></tr>';
+    return `<tr class="${s?'sel':''}"><td class="c"><input type="checkbox" ${s?'checked':''} onchange="tick('${e.id}',this.checked)"></td><td>${esc(e.sl)}</td><td>${fd(e.doi)}</td><td>${esc(e.acc)}</td><td>${esc(e.chNo)}</td><td>${fd(e.dated)}</td><td class="r">${money(e.amount)}</td><td>${esc(e.to)}</td><td>${esc(e.purpose)}<div class="words">${esc(e.inWords||numToWords(e.amount))}</div>${e.remarks?`<div class="remline">Remarks: ${esc(e.remarks)}</div>`:''}</td><td class="c" style="white-space:nowrap"><button class="btn sm" ${user?'':'disabled'} onclick="editEntry('${e.id}')">✎</button> <button class="btn red sm" ${user?'':'disabled'} onclick="delEntry('${e.id}')">🗑</button></td></tr>`}).join('')
+    :'<tr><td colspan="10" class="c">No entries yet — add your first cheque above.</td></tr>';
   const sr=selRows(),sa=sr.reduce((t,r)=>t+(Number(r.amount)||0),0);
   $('stN').textContent=rows.length;$('stAmt').textContent='₹'+money(tot);$('stSel').textContent=sr.length;
   $('stSelAmt').textContent=sr.length?`Selected · ₹${money(sa)}`:'Selected for documents';
@@ -1110,10 +1111,10 @@ function render(){const rows=visibleRows();let tot=0;
   const last=entries.slice().sort((a,b)=>(Number(b.sl)||0)-(Number(a.sl)||0))[0];$('stLast').textContent=last?`Sl ${last.sl} · ${fd(last.doi)}`:'—';
   $('all').checked=rows.length>0&&rows.every(r=>selected.has(r.id))}
 function printRegister(){const rows=visibleRows().sort((a,b)=>(Number(a.sl)||0)-(Number(b.sl)||0));const t=rows.reduce((s,e)=>s+(Number(e.amount)||0),0);
-  const body=rows.map(e=>`<tr><td>${esc(e.sl)}</td><td>${fd(e.doi)}</td><td>${esc(e.acc)}</td><td>${esc(e.chNo)}</td><td>${fd(e.dated)}</td><td class="r">${money(e.amount)}</td><td>${esc(e.to)}</td><td>${esc(e.purpose)}<br><i>${esc(e.inWords||numToWords(e.amount))}</i></td><td>${esc(e.remarks)}</td></tr>`).join('');
+  const body=rows.map(e=>`<tr><td>${esc(e.sl)}</td><td>${fd(e.doi)}</td><td>${esc(e.acc)}</td><td>${esc(e.chNo)}</td><td>${fd(e.dated)}</td><td class="r">${money(e.amount)}</td><td>${esc(e.to)}</td><td>${esc(e.purpose)}<br><i>${esc(e.inWords||numToWords(e.amount))}</i>${e.remarks?`<br><b>Remarks:</b> ${esc(e.remarks)}`:''}</td></tr>`).join('');
   const css=`@page{size:A4 landscape;margin:9mm}body{font-family:Arial,sans-serif;font-size:10pt;color:#000;margin:0}h2{text-align:center;margin:0 0 3px;font-size:14pt}p{text-align:center;margin:0 0 8px;font-size:10pt}table{width:100%;border-collapse:collapse;table-layout:fixed}th,td{border:1px solid #000;padding:3px 4px;vertical-align:top;word-wrap:break-word}th{background:#eee}thead{display:table-header-group}tr{break-inside:avoid}.r{text-align:right;white-space:nowrap}.bar{position:fixed;top:8px;right:10px}@media print{.bar{display:none}}`;
   const w=window.open('','_blank');if(!w){alert('Please allow pop-ups.');return}
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Cheque Issue Register</title><style>${css}</style></head><body><button class="bar" onclick="print()">🖨 Print</button><h2>CHEQUE ISSUE REGISTER</h2><p>${SCHOOL} — Entries: ${rows.length} — Total: ₹${money(t)}</p><table><colgroup><col style="width:3.5%"><col style="width:6.5%"><col style="width:9%"><col style="width:6.5%"><col style="width:6.5%"><col style="width:8.5%"><col style="width:13%"><col style="width:38%"><col style="width:8.5%"></colgroup><thead><tr><th>Sl</th><th>DOI</th><th>A/C No.</th><th>Ch No.</th><th>Dated</th><th>Amount ₹</th><th>To</th><th>Particulars</th><th>Remarks</th></tr></thead><tbody>${body}</tbody></table></body></html>`);w.document.close()}
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Cheque Issue Register</title><style>${css}</style></head><body><button class="bar" onclick="print()">🖨 Print</button><h2>CHEQUE ISSUE REGISTER</h2><p>${SCHOOL} — Entries: ${rows.length} — Total: ₹${money(t)}</p><table><colgroup><col style="width:3.5%"><col style="width:6.5%"><col style="width:9%"><col style="width:6.5%"><col style="width:6.5%"><col style="width:8.5%"><col style="width:13%"><col style="width:46.5%"></colgroup><thead><tr><th>Sl</th><th>DOI</th><th>A/C No.</th><th>Ch No.</th><th>Dated</th><th>Amount ₹</th><th>To</th><th>Particulars</th></tr></thead><tbody>${body}</tbody></table></body></html>`);w.document.close()}
 
 /* ================= document builders (A4 portrait, Arial, min 10pt) ================= */
 const DOC_CSS=`@page{size:A4 portrait;margin:12mm 12mm 12mm 18mm}*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
