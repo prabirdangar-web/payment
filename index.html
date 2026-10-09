@@ -112,6 +112,20 @@ details.more{margin-top:6px}details.more summary{cursor:pointer;color:var(--blue
           <button type="button" class="btn sm" onclick="generateVocPurpose()">Generate</button>
         </div>
       </div>
+      <div class="vocbox" id="mdmAutoBox">
+        <b>🍽 MDM payee-wise amounts</b> <span class="hint">— fills Purpose, Amount &amp; Payee; the MDM bank letter and voucher then fetch each payee's amount from it</span>
+        <div class="row" style="margin-top:6px">
+          <label class="hint">Shital Chhaya Mahila SHG <input type="number" step="any" min="0" id="mdmA0" style="width:100px"></label>
+          <label class="hint">Subhadip Chakraborty <input type="number" step="any" min="0" id="mdmA1" style="width:100px"></label>
+          <label class="hint">Tribhanga Khan <input type="number" step="any" min="0" id="mdmA2" style="width:100px"></label>
+          <label class="hint">Kishor Ghosh <input type="number" step="any" min="0" id="mdmA3" style="width:100px"></label>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <label class="hint">Other payee <input type="text" id="mdmXName" style="width:200px" placeholder="name (optional)"></label>
+          <label class="hint">Amount <input type="number" step="any" min="0" id="mdmXAmt" style="width:100px"></label>
+          <button type="button" class="btn sm" onclick="generateMdmPurpose()">Generate</button>
+        </div>
+      </div>
       <div class="row" style="margin-top:14px;justify-content:flex-end">
         <button type="button" class="btn ghost" onclick="resetForm()">Reset</button>
         <button type="button" class="btn red" id="cancelEdit" style="display:none" onclick="resetForm()">Cancel edit</button>
@@ -286,6 +300,7 @@ details.more{margin-top:6px}details.more summary{cursor:pointer;color:var(--blue
     const VOC_MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
     function toggleVocAuto() {
+        if (typeof toggleMdmAuto === "function") toggleMdmAuto();
         const box = document.getElementById("vocAutoBox");
         if (!box) return;
         const isVoc = /voc/i.test(document.getElementById("fAcc").value);
@@ -1194,10 +1209,28 @@ function vocRows(R){const r=R[0],idx=monthsIn(r.purpose);let n=idx.length,period
   if(n){const yr=(String(r.purpose).match(/\b(20\d\d)\b/)||[])[1]||String(r.dated||'').slice(0,4);period=(n===1?VOC_MONTHS[idx[0]].slice(0,3):VOC_MONTHS[idx[0]].slice(0,3)+'–'+VOC_MONTHS[idx[n-1]].slice(0,3))+' '+yr}
   else{n=parseInt(prompt('No month found in the purpose. How many months of honorarium?','1'),10)||1}
   return VOCATIONAL_DEFAULT_PAYEES.map((p,i)=>{const rate=VOC_AUTO.honorarium[i]?VOC_AUTO.honorarium[i][1]:0;return {...p,amount:rate?String(rate*n):'',remarks:rate?`Honorarium ${period}`.trim():''}})}
-function mdmRows(R){const defs=MDM_DEFAULT_PAYEES.slice(0,4).map(r=>({...r,amount:''}));const mt=[/chh?aya|mahila/i,/subhadip/i,/tribhanga/i,/kishor/i];const extra=[];
-  R.forEach(en=>{const a=parseFloat(en.amount)||0,p=String(en.to||'').trim();if(!a||/through|various/i.test(p))return;const i=mt.findIndex(x=>x.test(p));
+const MDM_SHOW=['Shital Chhaya Mahila SHG','Subhadip Chakraborty','Tribhanga Khan','Kishor Ghosh'];
+const MDM_MATCH=[/chh?aya|mahila/i,/subhadip/i,/tribhanga/i,/kishor/i];
+function toggleMdmAuto(){const b=$('mdmAutoBox');if(b)b.style.display=/mdm/i.test($('fAcc').value)?'block':'none'}
+function generateMdmPurpose(){const inr=n=>'₹'+Number(n).toLocaleString('en-IN');const parts=[];let tot=0;
+  MDM_SHOW.forEach((n,i)=>{const a=parseFloat($('mdmA'+i).value)||0;if(a){parts.push(`${n} ${inr(a)}`);tot+=a}});
+  const xn=$('mdmXName').value.trim(),xa=parseFloat($('mdmXAmt').value)||0;if(xn&&xa){parts.push(`${xn} ${inr(xa)}`);tot+=xa}
+  if(!parts.length){alert('Enter at least one payee amount.');return}
+  $('fPur').value=`Payment towards Mid Day Meal (MDM) expenses, total ${inr(tot)}, payee-wise: ${parts.join('; ')}.`;
+  $('fAmt').value=tot.toFixed(2);updWords();
+  $('fTo').value=parts.length>1?'To Various Payees through HM':parts[0].replace(/\s*₹.*$/,'')}
+/* read "payee-wise: Name ₹amt; Name ₹amt" (or free text like "Kishor Ghosh Rs 2500") from a bulk MDM cheque's purpose/remarks */
+function mdmParse(t){t=String(t||'');const out=[];const m=t.split(/payee-?wise\s*:/i);
+  if(m.length>1){m[1].split(';').forEach(seg=>{const x=seg.trim().match(/^(.*?)[\s:\-–]*(?:₹|Rs\.?|INR)\s*([0-9][0-9,]*(?:\.\d+)?)\s*\.?$/i);if(x&&x[1].trim())out.push([x[1].trim(),parseFloat(x[2].replace(/,/g,''))])});if(out.length)return out}
+  MDM_MATCH.forEach((re,i)=>{const x=t.match(new RegExp('('+re.source+')[^0-9₹]{0,40}?(?:₹|Rs\\.?|INR)?\\s*([0-9][0-9,]*(?:\\.\\d+)?)','i'));if(x)out.push([MDM_SHOW[i],parseFloat(x[2].replace(/,/g,''))])});
+  return out}
+function mdmRows(R){const defs=MDM_DEFAULT_PAYEES.slice(0,4).map(r=>({...r,amount:''}));const extra=[];
+  const add=(name,a)=>{const i=MDM_MATCH.findIndex(x=>x.test(name));
     if(i>=0){defs[i].amount=String((parseFloat(defs[i].amount)||0)+a);return}
-    const k=extra.find(x=>x.name.toLowerCase()===p.toLowerCase());if(k)k.amount=String((parseFloat(k.amount)||0)+a);else extra.push({name:p.toUpperCase(),acc:'',amount:String(a)})});
+    const k=extra.find(x=>x.name.toLowerCase()===name.toLowerCase());if(k)k.amount=String((parseFloat(k.amount)||0)+a);else extra.push({name:name.toUpperCase(),acc:'',amount:String(a)})};
+  R.forEach(en=>{const a=parseFloat(en.amount)||0,p=String(en.to||'').trim();
+    if(/through|various/i.test(p)){mdmParse((en.purpose||'')+' '+(en.remarks||'')).forEach(([n,x])=>{if(x)add(n,x)});return}
+    if(a)add(p,a)});
   const out=[...defs.filter(d=>d.amount),...extra];while(out.length<4)out.push({name:'',acc:'',amount:''});return out}
 function genVoc(){const R=selRows().filter(r=>/voc/i.test(r.acc));if(!R.length){alert('Tick a VOC cheque first.');return}generateVocationalTransferLetter(R)}
 function genMdm(){const R=selRows().filter(isMDM);if(!R.length){alert('Tick one or more MDM cheques first.');return}generateMDMTransferLetter(R)}
