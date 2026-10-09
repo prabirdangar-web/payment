@@ -401,7 +401,16 @@ details.more{margin-top:6px}details.more summary{cursor:pointer;color:var(--blue
             '<td><input type="number" step="any" min="0" class="pm" value="' + pe(x.amount) + '" oninput="recalcPayees()"></td>' +
             '<td class="sg"></td></tr>').join('') : '';
         const multiReceiptHtml = `<div class="receipt-section multi-rec">
-        <div class="rec-title">Received the amount set against my name, by cheque bearing No. <span id="recChequeDetails">${v.chqDetails}</span>, as detailed below:</div>
+        <div class="receipt-row">
+            <span class="inline-label">Received a sum of Rs.</span>
+            <span class="inline-fill" id="recAmountNum" style="min-width: 90px;">${v.amountNum}</span>
+            <span class="inline-fill" id="recAmountWords" style="flex-grow: 1; margin-left: 10px;">${v.amountWords}</span>
+        </div>
+        <div class="receipt-row" style="margin-top: 2px;">
+            <span class="inline-label">by cheque bearing No.</span>
+            <span class="inline-fill" id="recChequeDetails" style="flex-grow: 1;">${v.chqDetails}</span>
+            <span class="inline-label" style="margin-left:8px;">by the undersigned payees, as detailed below:</span>
+        </div>
         <table class="payee-table">
             <thead><tr><th style="width:7%;">Sl.</th><th>Name of Payee</th><th style="width:22%;">A/C No.</th><th style="width:16%;">Amount (Rs.)</th><th style="width:25%;">Signature of Recipient</th></tr></thead>
             <tbody>${payeeRowsHtml}</tbody>
@@ -482,7 +491,8 @@ select, input[type="text"], input[type="number"], input[type="date"], textarea {
 .payee-table { width: 100%; border-collapse: collapse; margin-top: 6px; }
 .payee-table th, .payee-table td { border: 1px solid #000; padding: 3px 6px; font-size: 14px; }
 .payee-table th { background-color: #f8f9fa; }
-.payee-table tbody tr { height: 36px; }
+.payee-table tbody tr { height: 34px; }
+body.multi .receipt-row { line-height: 1.9; font-size: 15px; }
 .payee-table td.pc { text-align: center; font-weight: bold; }
 .payee-table input { font-size: 14px; padding: 2px 4px; border-bottom: none; background: transparent; }
 .payee-table input.pm { text-align: right; }
