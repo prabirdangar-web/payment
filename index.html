@@ -391,6 +391,8 @@ details.more{margin-top:6px}details.more summary{cursor:pointer;color:var(--blue
         const pe = (x) => String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
         const fmt = (n) => (Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         const subTitle = v.subTitle || 'SSA/ RMSA, BANKURA';
+        const sigL = v.sigLeft || 'Headmaster';
+        const sigR = v.sigRight || 'Administrator';
         const paySum = multi ? v.payees.reduce((t, x) => t + (parseFloat(x.amount) || 0), 0) : 0;
         const payeeRowsHtml = multi ? v.payees.map((x, i) =>
             '<tr><td class="pc">' + (i + 1) + '</td>' +
@@ -606,8 +608,8 @@ body.multi .receipt-section { padding-top: 12px; }
         </table>
 
         <div class="signature-auth-row">
-            <div class="sig-box">Administrator</div>
-            <div class="sig-box">President</div>
+            <div class="sig-box">${sigL}</div>
+            <div class="sig-box">${sigR}</div>
         </div>
     </div>
 
@@ -1200,7 +1202,7 @@ function genVoucher(){const rows=selRows().filter(r=>/\bssm\b/i.test(r.acc)||isM
     if(isMDM(r)){/* MDM = several payees: list each payee with amount + signature column */
       let p=mdmRows([r]).filter(x=>x.name&&parseFloat(x.amount));
       if(!p.length)p=MDM_DEFAULT_PAYEES.slice(0,4).map(x=>({...x,amount:''}));
-      Object.assign(v,{payees:p,toWhomPaid:'Various Payees (as per list below)',subTitle:'MID DAY MEAL (MDM), BANKURA',headAccount:'Mid Day Meal (MDM)'})}
+      Object.assign(v,{payees:p,toWhomPaid:'Various Payees (as per list below)',subTitle:'MID DAY MEAL (MDM), BANKURA',headAccount:'Mid Day Meal (MDM)',sigLeft:'Headmaster',sigRight:'Assistant Headmaster (AHM)'})}
     openLetterWindow(buildSSMDebitVoucherHTML(v))},i*500));
   if(rows.length>1)toast(`Opening ${rows.length} vouchers — allow pop-ups if blocked`)}
 function letterCD(R){return {chqNo:String(R[0].chNo||''),chqDate:R[0].dated||todayISO()}}
