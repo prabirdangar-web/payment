@@ -1164,8 +1164,7 @@ function dNotice(rows){const funds=[...new Set(rows.map(r=>fundName(r.acc)))].jo
   return `<section class="doc">${lh()}<h2 class="dt">NOTICE — FINANCE SUB-COMMITTEE MEETING CALL</h2>
 ${meta([`Meeting No.: <b>${ref('fin')}</b>`,`Date of Issue: <b>${fd(todayISO())}</b>`],[`Meeting Date: <b>${fd(refs.finDate)}</b>`,`Time: <b>${ftime(refs.finTime)}</b>`,`Venue: <b>HM's Office</b>`])}
 <p class="j">All members of the Finance Sub-Committee are requested to attend the meeting on <b>${fd(refs.finDate)}</b> at <b>${ftime(refs.finTime)}</b> to examine the bills / vouchers placed by the HM and to sanction payment under fund head(s): <b>${esc(funds)}</b>.</p>
-<h3>Payments proposed</h3>${details(rows)}${tbl(rows)}
-<h3>Members — acknowledgement</h3>${memTbl('Signature &amp; Date')}${sign('Prabir Kumar Dangar','HM &amp; Convenor')}</section>`}
+${sign('Prabir Kumar Dangar','HM &amp; Convenor')}</section>`}
 function dRes(rows){const m=rows.map((r,i)=>isMDM(r)?i+1:0).filter(Boolean);
   return `<section class="doc">${lh()}<h2 class="dt">RESOLUTIONS ADOPTED — FINANCE SUB-COMMITTEE</h2>
 ${meta([`Meeting No.: <b>${ref('fin')}</b>`,`Held on: <b>${fd(refs.finDate)}</b>`],[`Time: <b>${ftime(refs.finTime)}</b>`,`Venue: <b>HM's Office</b>`,`Chair: <b>HM</b>`])}
