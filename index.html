@@ -381,7 +381,7 @@ details.more{margin-top:6px}details.more summary{cursor:pointer;color:var(--blue
         { name: "SUBHADIP CHAKRABORTY", acc: "896000028930", amount: "" },
         { name: "TRIBHANGA KHAN", acc: "606113041884", amount: "" },
         { name: "KISHOR GHOSH", acc: "110004594451", amount: "" },
-        { name: "", acc: "", amount: "" },
+        { name: "DHIREN DEY", acc: "", amount: "" },
         { name: "", acc: "", amount: "" }
     ];
 
@@ -1256,7 +1256,7 @@ function vocRows(R){const r=R[0],idx=monthsIn(r.purpose);let n=idx.length,period
   else{n=parseInt(prompt('No month found in the purpose. How many months of honorarium?','1'),10)||1}
   return VOCATIONAL_DEFAULT_PAYEES.map((p,i)=>{const rate=VOC_AUTO.honorarium[i]?VOC_AUTO.honorarium[i][1]:0;return {...p,amount:rate?String(rate*n):'',remarks:rate?`Honorarium ${period}`.trim():''}})}
 const MDM_SHOW=['Shital Chhaya Mahila SHG','Subhadip Chakraborty','Tribhanga Khan','Kishor Ghosh'];
-const MDM_MATCH=[/chh?aya|mahila/i,/subhadip/i,/tribhanga/i,/kishor/i];
+const MDM_MATCH=[/chh?aya|mahila/i,/subhadip/i,/tribhanga/i,/kishor/i,/dhiren/i];
 function toggleMdmAuto(){const b=$('mdmAutoBox');if(b)b.style.display=/mdm/i.test($('fAcc').value)?'block':'none'}
 function mdmPeriodText(){const ms=[...$('mdmMon').selectedOptions].map(o=>+o.value-1).sort((a,b)=>a-b),yr=($('mdmYear').value||'').trim();if(!ms.length)return '';const n=ms.map(i=>VOC_MONTHS[i]);return (n.length>1?'the months of '+n.slice(0,-1).join(', ')+' and '+n[n.length-1]:'the month of '+n[0])+' '+yr}
 function generateMdmPurpose(){const inr=n=>'₹'+Number(n).toLocaleString('en-IN');const parts=[];let tot=0;
@@ -1271,9 +1271,9 @@ function generateMdmPurpose(){const inr=n=>'₹'+Number(n).toLocaleString('en-IN
 /* read "payee-wise: Name ₹amt; Name ₹amt" (or free text like "Kishor Ghosh Rs 2500") from a bulk MDM cheque's purpose/remarks */
 function mdmParse(t){t=String(t||'');const out=[];const m=t.split(/payee-?wise\s*:/i);
   if(m.length>1){m[1].split(';').forEach(seg=>{const x=seg.trim().match(/^(.*?)[\s:\-–]*(?:₹|Rs\.?|INR)\s*([0-9][0-9,]*(?:\.\d+)?)\s*\.?$/i);if(x&&x[1].trim())out.push([x[1].trim(),parseFloat(x[2].replace(/,/g,''))])});if(out.length)return out}
-  MDM_MATCH.forEach((re,i)=>{const x=t.match(new RegExp('('+re.source+')[^0-9₹]{0,40}?(?:₹|Rs\\.?|INR)?\\s*([0-9][0-9,]*(?:\\.\\d+)?)','i'));if(x)out.push([MDM_SHOW[i],parseFloat(x[2].replace(/,/g,''))])});
+  MDM_MATCH.forEach((re,i)=>{const x=t.match(new RegExp('('+re.source+')[^0-9₹]{0,40}?(?:₹|Rs\\.?|INR)?\\s*([0-9][0-9,]*(?:\\.\\d+)?)','i'));if(x)out.push([MDM_SHOW[i]||'Dhiren Dey',parseFloat(x[2].replace(/,/g,''))])});
   return out}
-function mdmRows(R){const defs=MDM_DEFAULT_PAYEES.slice(0,4).map(r=>({...r,amount:'',remarks:''}));const extra=[];let RM='';
+function mdmRows(R){const defs=MDM_DEFAULT_PAYEES.slice(0,5).map(r=>({...r,amount:'',remarks:''}));const extra=[];let RM='';
   const rmk=o=>{if(RM&&!o.remarks.includes(RM))o.remarks=o.remarks?o.remarks+'; '+RM:RM;return o};
   const add=(name,a)=>{const i=MDM_MATCH.findIndex(x=>x.test(name));
     if(i>=0){defs[i].amount=String((parseFloat(defs[i].amount)||0)+a);rmk(defs[i]);return}
