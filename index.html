@@ -116,15 +116,23 @@ details.more{margin-top:6px}details.more summary{cursor:pointer;color:var(--blue
       <div class="vocbox" id="mdmAutoBox">
         <b>🍽 MDM payee-wise amounts</b> <span class="hint">— fills Purpose, Amount &amp; Payee; the MDM bank letter and voucher then fetch each payee's amount from it</span>
         <div class="row" style="margin-top:6px">
+          <label class="hint">Month(s) <select id="mdmMon" multiple size="4" style="min-width:120px"><option value="01">January</option><option value="02">February</option><option value="03">March</option><option value="04">April</option><option value="05">May</option><option value="06">June</option><option value="07">July</option><option value="08">August</option><option value="09">September</option><option value="10">October</option><option value="11">November</option><option value="12">December</option></select></label>
+          <label class="hint">Year <input type="number" id="mdmYear" value="2026" style="width:80px"></label>
+                    <a class="hint" href="https://prabirdangar-web.github.io/MDM/" target="_blank" rel="noopener">open MDM ↗</a>
+          <span class="hint" id="mdmFetchNote">Select month / months, then Generate — voucher parts are fetched from MDM at that moment. No month = Others (type manually).</span>
+        </div>
+        <div id="mdmDiffNote" class="hint" style="margin-top:6px;font-weight:600"></div>
+        <div class="row" style="margin-top:6px">
           <label class="hint">Shital Chhaya Mahila SHG <input type="number" step="any" min="0" id="mdmA0" style="width:100px"></label>
           <label class="hint">Subhadip Chakraborty <input type="number" step="any" min="0" id="mdmA1" style="width:100px"></label>
           <label class="hint">Tribhanga Khan <input type="number" step="any" min="0" id="mdmA2" style="width:100px"></label>
           <label class="hint">Kishor Ghosh <input type="number" step="any" min="0" id="mdmA3" style="width:100px"></label>
+          <label class="hint" id="mdmDhirenWrap" style="display:none">Dhiren Dey (Chicken) <input type="number" step="any" min="0" id="mdmA4" style="width:100px"></label>
         </div>
         <div class="row" style="margin-top:6px">
           <label class="hint">Other payee <input type="text" id="mdmXName" style="width:200px" placeholder="name (optional)"></label>
           <label class="hint">Amount <input type="number" step="any" min="0" id="mdmXAmt" style="width:100px"></label>
-          <button type="button" class="btn sm" onclick="generateMdmPurpose()">Generate</button>
+          <button type="button" class="btn sm" onclick="mdmGenerateClick()">Generate</button>
         </div>
       </div>
       <div class="row" style="margin-top:14px;justify-content:flex-end">
@@ -1063,7 +1071,7 @@ function onAccChange(){$('fAccMan').style.display=$('fAcc').value==='MANUAL'?'bl
 function suggestChNo(force){if(editId)return;const acc=accVal();if(!acc)return;if($('fChNo').value&&!force)return;
   let max=0,w=6;entries.filter(e=>e.acc===acc).forEach(e=>{const dg=String(e.chNo||'').replace(/\D/g,'');if(dg&&parseInt(dg,10)>=max){max=parseInt(dg,10);w=dg.length}});
   $('fChNo').value=max?String(max+1).padStart(w,'0'):''}
-function resetForm(keep){editId=null;const acc=$('fAcc').value;$('entryForm').reset();
+function resetForm(keep){editId=null;window.mdmExtra=[];if($('mdmDhirenWrap'))$('mdmDhirenWrap').style.display='none';const acc=$('fAcc').value;$('entryForm').reset();
   $('fDoi').value=$('fDated').value=todayISO();
   if(keep&&acc){$('fAcc').value=acc;onAccChange()}else{$('fAccMan').style.display='none';toggleVocAuto()}
   $('fWords').value='';$('editNote').textContent='';$('saveBtn').textContent='💾 Save to Register';$('cancelEdit').style.display='none'}
@@ -1251,6 +1259,8 @@ const MDM_MATCH=[/chh?aya|mahila/i,/subhadip/i,/tribhanga/i,/kishor/i];
 function toggleMdmAuto(){const b=$('mdmAutoBox');if(b)b.style.display=/mdm/i.test($('fAcc').value)?'block':'none'}
 function generateMdmPurpose(){const inr=n=>'₹'+Number(n).toLocaleString('en-IN');const parts=[];let tot=0;
   MDM_SHOW.forEach((n,i)=>{const a=parseFloat($('mdmA'+i).value)||0;if(a){parts.push(`${n} ${inr(a)}`);tot+=a}});
+  const da=parseFloat(($('mdmA4')||{}).value)||0;if(da){parts.push(`Dhiren Dey ${inr(da)}`);tot+=da}
+  (window.mdmExtra||[]).forEach(x=>{if(x.a){parts.push(`${x.l} ${inr(x.a)}`);tot+=x.a}});
   const xn=$('mdmXName').value.trim(),xa=parseFloat($('mdmXAmt').value)||0;if(xn&&xa){parts.push(`${xn} ${inr(xa)}`);tot+=xa}
   if(!parts.length){alert('Enter at least one payee amount.');return}
   $('fPur').value=`Payment towards Mid Day Meal (MDM) expenses, total ${inr(tot)}, payee-wise: ${parts.join('; ')}.`;
@@ -1270,6 +1280,30 @@ function mdmRows(R){const defs=MDM_DEFAULT_PAYEES.slice(0,4).map(r=>({...r,amoun
     if(/through|various/i.test(p)){mdmParse((en.purpose||'')+' '+(en.remarks||'')).forEach(([n,x])=>{if(x)add(n,x)});return}
     if(a)add(p,a)});
   const out=[...defs.filter(d=>d.amount),...extra];while(out.length<4)out.push({name:'',acc:'',amount:'',remarks:''});return out}
+
+/* ===== Fetch payee-wise amounts from the MDM tool (https://prabirdangar-web.github.io/MDM/) — same Firebase project, collection mdmMonths ===== */
+async function mdmGenerateClick(){if([...$('mdmMon').selectedOptions].length)await fetchMdm();else{$('mdmDiffNote').textContent='';generateMdmPurpose()}}
+async function fetchMdm(){if(!needAuth())return;const note=$('mdmFetchNote');
+  const mons=[...$('mdmMon').selectedOptions].map(o=>o.value),yr=($('mdmYear').value||'').trim();
+  if(!mons.length){note.textContent='No month selected = Others — type the amounts manually.';return}
+  note.textContent='Fetching from MDM…';
+  const sum={hon:0,veg:0,gro:0,jal:0,chk:0},ex={},missing=[],got=[];let vt=0,pt=0,noPt=false;
+  try{for(const m of mons){const ym=yr+'-'+m,d=await db.collection('mdmMonths').doc(ym).get();
+      if(!d.exists||!d.data().pm){missing.push(ym);continue}
+      const pm=d.data().pm;got.push(ym);vt+=Number(pm.tot)||0;if(pm.pt===undefined)noPt=true;else pt+=Number(pm.pt)||0;['hon','veg','gro','jal','chk'].forEach(k=>sum[k]+=Number(pm[k])||0);
+      (pm.oth||[]).forEach(x=>{const k=String(x.l||'').trim();if(k)ex[k]=(ex[k]||0)+(Number(x.a)||0)})}}
+  catch(e){note.textContent='Fetch failed: '+e.message;return}
+  if(!got.length){note.textContent='Nothing found for '+missing.join(', ')+' — open that month in MDM (admin) and Save once, then fetch again.';return}
+  const r=x=>x?String(Math.round(x*100)/100):'';
+  $('mdmA0').value=r(sum.hon);$('mdmA1').value=r(sum.veg);$('mdmA2').value=r(sum.gro);$('mdmA3').value=r(sum.jal);
+  /* chicken → Dhiren Dey is added only when chicken was actually bought */
+  $('mdmDhirenWrap').style.display=sum.chk>0?'inline-block':'none';$('mdmA4').value=sum.chk>0?r(sum.chk):'';
+  window.mdmExtra=Object.keys(ex).map(l=>({l,a:ex[l]}));
+  generateMdmPurpose();
+  const dn=$('mdmDiffNote'),inr=x=>'₹'+Number(Math.round(x*100)/100).toLocaleString('en-IN'),df=Math.round((vt-pt)*100)/100;
+  dn.style.color=noPt?'#666':(Math.abs(df)<0.5?'#1b7f3b':'#c0392b');
+  dn.textContent=noPt?'Voucher '+inr(vt)+' · payment total not saved yet in MDM (admin: open MDM once to update) — difference not calculated':'Voucher '+inr(vt)+' · Payment '+inr(pt)+' · Remaining difference '+inr(df)+(Math.abs(df)<0.5?' ✔ matched':df>0?' (voucher higher)':' (payment higher)');
+  note.textContent='Fetched '+got.join(', ')+(sum.chk>0?' · chicken: Dhiren Dey added':'')+(missing.length?' · not saved in MDM: '+missing.join(', '):'')}
 function genVoc(){const R=selRows().filter(r=>/voc/i.test(r.acc));if(!R.length){alert('Tick a VOC cheque first.');return}generateVocationalTransferLetter(R)}
 function genMdm(){const R=selRows().filter(isMDM);if(!R.length){alert('Tick one or more MDM cheques first.');return}generateMDMTransferLetter(R)}
 
