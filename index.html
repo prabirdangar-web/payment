@@ -530,7 +530,7 @@ details.more{margin-top:6px}details.more summary{cursor:pointer;color:var(--blue
         const paySum = multi ? v.payees.reduce((t, x) => t + (parseFloat(x.amount) || 0), 0) : 0;
         const payeeRowsHtml = multi ? v.payees.map((x, i) =>
             '<tr><td class="pc">' + (i + 1) + '</td>' +
-            '<td><input type="text" class="pn" value="' + pe(x.name) + '"></td>' +
+            '<td><textarea class="pn" rows="1">' + pe(x.name) + '</textarea></td>' +
             '<td><input type="text" class="pa" value="' + pe(x.acc) + '"></td>' +
             '<td><input type="number" step="any" min="0" class="pm" value="' + pe(x.amount) + '" oninput="recalcPayees()"></td>' +
             '<td class="sg"></td></tr>').join('') : '';
@@ -547,10 +547,11 @@ details.more{margin-top:6px}details.more summary{cursor:pointer;color:var(--blue
         </div>
         ${remHtml}
         <table class="payee-table">
-            <thead><tr><th style="width:7%;">Sl.</th><th>Name of Payee</th><th style="width:22%;">A/C No.</th><th style="width:16%;">Amount (Rs.)</th><th style="width:25%;">Signature of Recipient</th></tr></thead>
+            <thead><tr><th style="width:6%;">Sl.</th><th style="width:29%;">Name of Payee</th><th style="width:20%;">A/C No.</th><th style="width:15%;">Amount (Rs.)</th><th style="width:30%;">Signature of Recipient</th></tr></thead>
             <tbody>${payeeRowsHtml}</tbody>
             <tfoot><tr><td colspan="3" style="text-align:right;">TOTAL</td><td id="payTotal" style="text-align:right;">${paySum ? fmt(paySum) : ''}</td><td></td></tr></tfoot>
         </table>
+        <div id="payDiff" class="np" data-chq="${v.amountNum}"></div>
     </div>`;
         const singleReceiptHtml = `    <div class="receipt-section">
         <div class="receipt-row">
@@ -633,6 +634,13 @@ select, input[type="text"], input[type="number"], input[type="date"], textarea {
 .payee-table input { font-size: 14px; padding: 2px 4px; border-bottom: none; background: transparent; }
 .payee-table input.pm { text-align: right; }
 .payee-table tfoot td { font-weight: bold; }
+.payee-table { table-layout: fixed; }
+.payee-table th, .payee-table td { overflow: hidden; white-space: nowrap; }
+.payee-table td.sg { background: #fff; }
+.payee-table input { width: 100%; min-width: 0; text-overflow: clip; }
+.payee-table textarea { width: 100%; min-width: 0; font-size: 14px; font-weight: bold; line-height: 1.1; padding: 2px 4px; border-bottom: none; background: transparent; resize: none; overflow: hidden; display: block; }
+#toWhomPaid, #chequeDetails { text-overflow: clip; }
+.np { position: fixed; left: 10px; bottom: 10px; font-size: 12px; font-weight: bold; color: #c0392b; z-index: 9999; }
 .rec-title { font-size: 15px; font-weight: bold; margin-bottom: 4px; }
 .seal-box { width: 78px; height: 78px; border: 1px dashed #888; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; color: #888; }
 body.multi .voucher-container { padding: 24px 38px; height: 296mm; }
@@ -671,8 +679,9 @@ body.multi .receipt-section { padding-top: 12px; }
     select { appearance: none; -webkit-appearance: none; }
     .form-table td, .right-info-table td, .payee-table th { background-color: transparent !important; border: 1px solid #000 !important; }
     .payee-table td { border: 1px solid #000 !important; }
-    .payee-table input { border: none !important; }
-    .no-print { display: none !important; }
+    .payee-table input, .payee-table textarea { border: none !important; }
+    .payee-table textarea { overflow: hidden !important; }
+    .no-print, .np { display: none !important; }
     textarea { overflow: visible !important; height: auto !important; }
 }
 </style>
@@ -865,6 +874,42 @@ body.multi .receipt-section { padding-top: 12px; }
             if (targetRecNum) targetRecNum.innerText = "";
         }
     }
+
+    var dynStyle = document.createElement('style'); document.head.appendChild(dynStyle);
+    function setRowStyle(h, f) {
+        dynStyle.textContent = '.payee-table tbody tr{height:' + h + 'px !important}.payee-table th,.payee-table td,.payee-table input,.payee-table textarea{font-size:' + f + 'px}.payee-table textarea{height:' + (h - 6) + 'px !important}';
+    }
+    function fitEl(el) {
+        if (!el) return;
+        var s = parseFloat(getComputedStyle(el).fontSize) || 14, g = 0;
+        var tooBig = function() { return el.tagName === 'TEXTAREA' ? el.scrollHeight > el.clientHeight + 1 : el.scrollWidth > el.clientWidth + 1; };
+        while (tooBig() && s > 6.5 && g++ < 80) { s -= 0.5; el.style.fontSize = s + 'px'; }
+    }
+    function fitAll() {
+        var c = document.querySelector('.voucher-container');
+        if (document.querySelector('.payee-table')) {
+            var h = 30, f = 14, g = 0; setRowStyle(h, f);
+            while (c && c.scrollHeight > c.clientHeight + 1 && h > 15 && g++ < 20) { h -= 2; if (f > 10) f -= 0.5; setRowStyle(h, f); }
+        }
+        document.querySelectorAll('.payee-table input, .payee-table textarea, #toWhomPaid, #chequeDetails').forEach(function(el) { el.style.fontSize = ''; fitEl(el); });
+        var pt = document.getElementById('payTotal'); if (pt) { pt.style.fontSize = ''; fitEl(pt); }
+    }
+    function checkSum() {
+        var n = document.getElementById('payDiff'); if (!n) return;
+        var chq = parseFloat(n.getAttribute('data-chq')) || 0, t = 0;
+        document.querySelectorAll('.pm').forEach(function(i) { t += parseFloat(i.value) || 0; });
+        var d = Math.round((chq - t) * 100) / 100;
+        n.textContent = (chq && Math.abs(d) > 0.005) ? ('Payee total differs from cheque amount Rs. ' + chq + ' by Rs. ' + d + ' (not printed)') : '';
+    }
+    document.addEventListener('input', function(e) {
+        var t = e.target;
+        if (t.matches && t.matches('.payee-table input, .payee-table textarea, #toWhomPaid, #chequeDetails')) { t.style.fontSize = ''; fitEl(t); }
+        if (t.classList && t.classList.contains('pm')) { var pt = document.getElementById('payTotal'); if (pt) { pt.style.fontSize = ''; fitEl(pt); } }
+    });
+    window.addEventListener('load', function() { fitAll(); checkSum(); });
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitAll);
+    window.addEventListener('beforeprint', fitAll);
+    window.addEventListener('afterprint', fitAll);
 <\/script>
 </body>
 </html>`;
@@ -1364,13 +1409,24 @@ function gen(type){const rows=selRows();if(!rows.length){alert('Tick one or more
   openDoc(t[0],t[1]())}
 
 /* ================= SSM voucher + VOC / MDM bank letters (auto-fetched from ticked cheques) ================= */
-function genVoucher(){const rows=selRows().filter(r=>/\bssm\b/i.test(r.acc)||isMDM(r));if(!rows.length){alert('Tick one or more SSM or MDM cheques first.');return}
+function payeeAccFor(name){const n=String(name||'');const mi=MDM_MATCH.findIndex(x=>x.test(n));if(mi>=0&&MDM_DEFAULT_PAYEES[mi])return MDM_DEFAULT_PAYEES[mi].acc||'';
+  const k=n.toLowerCase().split(/\s+/).slice(0,2).join(' ');const h=VOCATIONAL_DEFAULT_PAYEES.find(p=>k&&p.name.toLowerCase().indexOf(k)===0);return h?h.acc:''}
+/* every cheque paid to several payees -> list of {name,acc,amount,remarks}; null = single payee */
+function voucherPayees(r){
+  if(isMDM(r)){let p=mdmRows([r]).filter(x=>x.name&&parseFloat(x.amount));if(!p.length)p=MDM_DEFAULT_PAYEES.slice(0,4).map(x=>({...x,amount:''}));return p}
+  if(/voc/i.test(r.acc)){let p=vocRows([r]).filter(x=>x.name&&parseFloat(x.amount));if(!p.length)p=VOCATIONAL_DEFAULT_PAYEES.map(x=>({...x,amount:''}));return p}
+  if(/payee-?wise|through|various/i.test(String(r.to||'')+' '+String(r.purpose||''))){
+    const p=mdmParse((r.purpose||'')+' '+(r.remarks||'')).filter(x=>x[1]).map(x=>({name:String(x[0]).toUpperCase(),acc:payeeAccFor(x[0]),amount:String(x[1]),remarks:''}));
+    if(p.length>1||(p.length&&/through|various/i.test(String(r.to||''))))return p}
+  return null}
+function genVoucher(){const rows=selRows().filter(r=>/\bssm\b/i.test(r.acc)||isMDM(r)||/voc/i.test(r.acc)||voucherPayees(r));if(!rows.length){alert('Tick one or more SSM / MDM / VOC (or multi-payee) cheques first.');return}
   rows.forEach((r,i)=>setTimeout(()=>{const a=Number(r.amount)||0;const cd=String(r.chNo||'')+(r.dated?' dt. '+fd(r.dated):'');
     const v={voucherDate:r.dated||todayISO(),toWhomPaid:esc(r.to),purpose:esc(r.purpose),amountNum:a||'',amountWords:esc(numToWords(Math.floor(a))),chqDetails:esc(cd),chqType:'A/C Payee Only',remarks:esc(r.remarks||'')};
-    if(isMDM(r)){/* MDM = several payees: list each payee with amount + signature column */
-      let p=mdmRows([r]).filter(x=>x.name&&parseFloat(x.amount));
-      if(!p.length)p=MDM_DEFAULT_PAYEES.slice(0,4).map(x=>({...x,amount:''}));
-      Object.assign(v,{payees:p,toWhomPaid:'Various Payees (as per list below)',subTitle:'MID DAY MEAL (MDM), BANKURA',headAccount:'Mid Day Meal (MDM)',sigLeft:'Headmaster',sigRight:'Assistant Headmaster (AHM)'})}
+    const p=voucherPayees(r);
+    if(p&&p.length){/* several payees on one cheque: every payee gets its own row with a signature box */
+      const rem=p.map(x=>x.remarks).filter(Boolean)[0];if(!v.remarks&&rem)v.remarks=esc(rem);
+      Object.assign(v,{payees:p,toWhomPaid:'Various Payees (as per list below)'});
+      if(isMDM(r))Object.assign(v,{subTitle:'MID DAY MEAL (MDM), BANKURA',headAccount:'Mid Day Meal (MDM)',sigLeft:'Headmaster',sigRight:'Assistant Headmaster (AHM)'})}
     openLetterWindow(buildSSMDebitVoucherHTML(v))},i*500));
   if(rows.length>1)toast(`Opening ${rows.length} vouchers — allow pop-ups if blocked`)}
 function letterCD(R){return {chqNo:String(R[0].chNo||''),chqDate:R[0].dated||todayISO()}}
