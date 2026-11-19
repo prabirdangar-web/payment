@@ -111,9 +111,17 @@ details.more{margin-top:6px}details.more summary{cursor:pointer;color:var(--blue
           <select id="vocFrom"></select> to <select id="vocTo"></select>
           <input type="number" id="vocYear" value="2026" style="width:90px">
           <button type="button" class="btn sm" onclick="generateVocPurpose()">Generate</button>
-          <a class="hint" href="voc_recurring_grant.html" target="_blank" rel="noopener">open VOC Grant ↗</a>
         </div>
         <div id="vocGrantNote" class="hint" style="margin-top:6px;font-weight:600">Amounts & items are fetched automatically from the VOC Grant tool (saved months).</div>
+        <details style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">📥 Import VOC Recurring Grant Excel (monthly requisition)</summary>
+          <div class="row" style="margin-top:6px">
+            <input type="file" id="vocImpFile" accept=".xls,.xlsx,.html,.htm" multiple onchange="vocImportFiles([...this.files]);this.value=''" style="width:auto">
+            <label class="hint">FY starts <input type="number" id="vocFY" value="2026" style="width:80px"></label>
+            <button type="button" class="btn sm green" onclick="vocSaveGrant()">☁ Save months to cloud</button>
+          </div>
+          <div id="vocImpList" style="margin-top:6px"></div>
+          <div class="hint" id="vocImpMsg">Choose one or more grant files (month is detected from the file name, or pick it). Imported months are used by Generate right away; Save keeps them for all computers.</div>
+        </details>
       </div>
       <div class="vocbox" id="mdmAutoBox">
         <b>🍽 MDM payee-wise amounts</b> <span class="hint">— fills Purpose, Amount &amp; Payee; the MDM bank letter and voucher then fetch each payee's amount from it</span>
@@ -193,6 +201,7 @@ details.more{margin-top:6px}details.more summary{cursor:pointer;color:var(--blue
 </div>
 <div class="toast" id="toast"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
@@ -349,6 +358,73 @@ details.more{margin-top:6px}details.more summary{cursor:pointer;color:var(--blue
         };
     }
     const vocSumItems = (arr) => arr.reduce((s, r) => s + (Number(r.amt) || 0), 0);
+
+
+    /* ===== VOC grant Excel import (merged from the former voc_recurring_grant.html) ===== */
+    const VOC_FY_MONTHS = ["April","May","June","July","August","September","October","November","December","January","February","March"];
+    const VOC_IMP = [];
+    function vocYm(mName) { const i = VOC_FY_MONTHS.indexOf(mName); if (i < 0) return ""; const y = parseInt(document.getElementById("vocFY").value, 10) || 2026; return (i >= 9 ? y + 1 : y) + "-" + String(((i + 3) % 12) + 1).padStart(2, "0"); }
+    function vocRowsFromHtml(text) {
+        const doc = new DOMParser().parseFromString(text, "text/html");
+        return [...doc.querySelectorAll("tr")].map(tr => [...tr.children].map(c => c.textContent.replace(/\s+/g, " ").trim()));
+    }
+    function vocParseRows(rows) {
+        const adm = [], oth = []; let deduction = 0;
+        const num = v => { const n = parseFloat(String(v).replace(/,/g, "")); return isNaN(n) ? null : n; };
+        for (const r of rows) {
+            const c = r.map(x => String(x == null ? "" : x).trim()), up = c.map(x => x.toUpperCase());
+            if (up[3] && up[3].startsWith("DEDUCTION")) deduction = num(c[4]) || 0;
+            if (up[0] === "TOTAL" || up[0].startsWith("BREAK UP") || up[0] === "ADMINISTRATIVE HONORIUM") continue;
+            if (c[0] && num(c[1]) != null && !/TOTAL|DEDUCTION|NET AMOUNT/.test(up[0])) adm.push({ label: c[0], amt: num(c[1]) });
+            if (c[3] && num(c[4]) != null && !/TOTAL|DEDUCTION|NET AMOUNT/.test(up[3])) oth.push({ label: c[3], amt: num(c[4]) });
+        }
+        return (adm.length || oth.length) ? { adm, oth, deduction } : null;
+    }
+    async function vocReadFile(file) {
+        const buf = await file.arrayBuffer();
+        const head = new TextDecoder("utf-8", { fatal: false }).decode(buf.slice(0, 400)).toLowerCase();
+        let rows;
+        if (head.includes("<table") || head.includes("<html") || head.includes("<tr")) rows = vocRowsFromHtml(new TextDecoder("utf-8").decode(buf));
+        else { const wb = XLSX.read(buf, { type: "array" }); rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: "" }); }
+        return vocParseRows(rows);
+    }
+    function vocApplyImp(it) { if (it.ym && it.parsed) window.VOC_GRANT[it.ym] = { ...it.parsed, month: it.month, src: it.name }; }
+    async function vocImportFiles(list) {
+        let bad = 0;
+        for (const f of list) {
+            let parsed = null; try { parsed = await vocReadFile(f); } catch (e) {}
+            if (!parsed) { bad++; continue; }
+            const month = VOC_FY_MONTHS.find(m => f.name.toLowerCase().includes(m.toLowerCase())) || "";
+            const it = { name: f.name, month, ym: vocYm(month), parsed };
+            VOC_IMP.push(it); vocApplyImp(it);
+        }
+        vocRenderImp();
+        if (bad) document.getElementById("vocImpMsg").innerHTML = '<span style="color:#c0392b">' + bad + ' file(s) could not be read.</span>';
+    }
+    function vocRenderImp() {
+        const inr = n => "₹" + Number(n || 0).toLocaleString("en-IN");
+        document.getElementById("vocImpList").innerHTML = VOC_IMP.map((it, i) => {
+            const a = vocSumItems(it.parsed.adm), o = vocSumItems(it.parsed.oth), d = it.parsed.deduction || 0;
+            return `<div class="row" style="padding:3px 0;border-bottom:1px solid #cfe0f5"><span style="flex:1;word-break:break-all">${String(it.name).replace(/[<&]/g, "")}</span>
+              <select onchange="vocSetMonth(${i},this.value)"><option value="">— month —</option>${VOC_FY_MONTHS.map(m => `<option ${m === it.month ? "selected" : ""}>${m}</option>`).join("")}</select>
+              <span class="hint">Hon ${inr(a)} · Rec ${inr(o)} · Ded ${inr(d)} · <b>Net ${inr(a + o - d)}</b></span>
+              <button type="button" class="btn sm" onclick="vocRemoveImp(${i})">✕</button></div>`;
+        }).join("");
+    }
+    function vocSetMonth(i, m) { const it = VOC_IMP[i]; it.month = m; it.ym = vocYm(m); vocApplyImp(it); vocRenderImp(); }
+    function vocRemoveImp(i) { VOC_IMP.splice(i, 1); vocRenderImp(); }
+    async function vocSaveGrant() {
+        if (!needAuth()) return;
+        const ok = VOC_IMP.filter(x => x.ym);
+        if (!ok.length) { alert("Import a file and pick its month first."); return; }
+        try {
+            for (const it of ok) {
+                const a = vocSumItems(it.parsed.adm), o = vocSumItems(it.parsed.oth);
+                await db.collection("vocGrantMonths").doc(it.ym).set({ month: it.month, adm: it.parsed.adm, oth: it.parsed.oth, deduction: it.parsed.deduction || 0, admTotal: a, othTotal: o, net: a + o - (it.parsed.deduction || 0), src: it.name, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+            }
+            document.getElementById("vocImpMsg").innerHTML = '<span style="color:#1b7f3b">Saved ' + ok.length + " month(s): " + ok.map(x => x.month).join(", ") + "</span>";
+        } catch (e) { document.getElementById("vocImpMsg").innerHTML = '<span style="color:#c0392b">Save failed: ' + e.message + "</span>"; }
+    }
 
     async function generateVocPurpose() {
         const inr = n => "₹" + Number(n).toLocaleString("en-IN");
