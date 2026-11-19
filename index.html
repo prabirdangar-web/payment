@@ -337,11 +337,12 @@ details.more{margin-top:6px}details.more summary{cursor:pointer;color:var(--blue
     /* ===== VOC grant data — saved by voc_recurring_grant.html into Firebase collection vocGrantMonths (doc id YYYY-MM) ===== */
     window.VOC_GRANT = {};
     let vocGrantUnsub = null;
+    const vocDoc = () => db.doc("tfhs/vocGrantMonths");
     function loadVocGrant() {
         if (vocGrantUnsub) return;
         try {
-            vocGrantUnsub = db.collection("vocGrantMonths").onSnapshot(
-                snap => { snap.forEach(d => { window.VOC_GRANT[d.id] = d.data(); }); },
+            vocGrantUnsub = vocDoc().onSnapshot(
+                snap => { const m = (snap.data() || {}).months || {}; Object.keys(m).forEach(k => { window.VOC_GRANT[k] = m[k]; }); },
                 () => { vocGrantUnsub = null; });
         } catch (e) {}
     }
@@ -418,10 +419,12 @@ details.more{margin-top:6px}details.more summary{cursor:pointer;color:var(--blue
         const ok = VOC_IMP.filter(x => x.ym);
         if (!ok.length) { alert("Import a file and pick its month first."); return; }
         try {
+            const months = {};
             for (const it of ok) {
                 const a = vocSumItems(it.parsed.adm), o = vocSumItems(it.parsed.oth);
-                await db.collection("vocGrantMonths").doc(it.ym).set({ month: it.month, adm: it.parsed.adm, oth: it.parsed.oth, deduction: it.parsed.deduction || 0, admTotal: a, othTotal: o, net: a + o - (it.parsed.deduction || 0), src: it.name, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+                months[it.ym] = { month: it.month, adm: it.parsed.adm, oth: it.parsed.oth, deduction: it.parsed.deduction || 0, admTotal: a, othTotal: o, net: a + o - (it.parsed.deduction || 0), src: it.name };
             }
+            await vocDoc().set({ months, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
             document.getElementById("vocImpMsg").innerHTML = '<span style="color:#1b7f3b">Saved ' + ok.length + " month(s): " + ok.map(x => x.month).join(", ") + "</span>";
         } catch (e) { document.getElementById("vocImpMsg").innerHTML = '<span style="color:#c0392b">Save failed: ' + e.message + "</span>"; }
     }
@@ -439,7 +442,7 @@ details.more{margin-top:6px}details.more summary{cursor:pointer;color:var(--blue
 
         /* refresh from the grant tool's saved data */
         if (typeof user !== "undefined" && user) {
-            try { for (const m of months) { const d = await db.collection("vocGrantMonths").doc(vocKey(year, m)).get(); if (d.exists) window.VOC_GRANT[d.id] = d.data(); } } catch (e) {}
+            try { const d = await vocDoc().get(); const mm = (d.data() || {}).months || {}; months.forEach(m => { const k = vocKey(year, m); if (mm[k]) window.VOC_GRANT[k] = mm[k]; }); } catch (e) {}
         }
         const md = months.map(m => vocMonthData(year, m));
         const fromGrant = months.filter((m, i) => md[i].fromGrant).map(m => VOC_MONTHS[m]);
