@@ -111,7 +111,9 @@ details.more{margin-top:6px}details.more summary{cursor:pointer;color:var(--blue
           <select id="vocFrom"></select> to <select id="vocTo"></select>
           <input type="number" id="vocYear" value="2026" style="width:90px">
           <button type="button" class="btn sm" onclick="generateVocPurpose()">Generate</button>
+          <a class="hint" href="voc_recurring_grant.html" target="_blank" rel="noopener">open VOC Grant ↗</a>
         </div>
+        <div id="vocGrantNote" class="hint" style="margin-top:6px;font-weight:600">Amounts & items are fetched automatically from the VOC Grant tool (saved months).</div>
       </div>
       <div class="vocbox" id="mdmAutoBox">
         <b>🍽 MDM payee-wise amounts</b> <span class="hint">— fills Purpose, Amount &amp; Payee; the MDM bank letter and voucher then fetch each payee's amount from it</span>
@@ -323,7 +325,32 @@ details.more{margin-top:6px}details.more summary{cursor:pointer;color:var(--blue
         }
     }
 
-    function generateVocPurpose() {
+    /* ===== VOC grant data — saved by voc_recurring_grant.html into Firebase collection vocGrantMonths (doc id YYYY-MM) ===== */
+    window.VOC_GRANT = {};
+    let vocGrantUnsub = null;
+    function loadVocGrant() {
+        if (vocGrantUnsub) return;
+        try {
+            vocGrantUnsub = db.collection("vocGrantMonths").onSnapshot(
+                snap => { snap.forEach(d => { window.VOC_GRANT[d.id] = d.data(); }); },
+                () => { vocGrantUnsub = null; });
+        } catch (e) {}
+    }
+    const vocKey = (year, m) => year + "-" + String(m + 1).padStart(2, "0");
+    /* month data: grant file if saved, else built-in default rates */
+    function vocMonthData(year, m) {
+        const g = window.VOC_GRANT[vocKey(year, m)];
+        if (g && Array.isArray(g.adm) && Array.isArray(g.oth)) return { adm: g.adm, oth: g.oth, deduction: Number(g.deduction) || 0, fromGrant: true };
+        const x = VOC_AUTO.xPlus[m] !== undefined ? VOC_AUTO.xPlus[m] : VOC_AUTO.xDefault;
+        return {
+            adm: VOC_AUTO.honorarium.map(r => ({ label: r[0], amt: r[1] })),
+            oth: VOC_AUTO.monthly.map(r => ({ label: r[0], amt: r[1] })).concat([{ label: "X+ training materials", amt: x }]),
+            deduction: 0, fromGrant: false
+        };
+    }
+    const vocSumItems = (arr) => arr.reduce((s, r) => s + (Number(r.amt) || 0), 0);
+
+    async function generateVocPurpose() {
         const inr = n => "₹" + Number(n).toLocaleString("en-IN");
         const joinAnd = arr => arr.length > 1 ? arr.slice(0, -1).join(", ") + " and " + arr[arr.length - 1] : (arr[0] || "");
         const cat = document.getElementById("vocCat").value;
@@ -333,37 +360,55 @@ details.more{margin-top:6px}details.more summary{cursor:pointer;color:var(--blue
         if (from > to) { alert("'From' month must not be after 'To' month."); return; }
         const months = [];
         for (let m = from; m <= to; m++) months.push(m);
+
+        /* refresh from the grant tool's saved data */
+        if (typeof user !== "undefined" && user) {
+            try { for (const m of months) { const d = await db.collection("vocGrantMonths").doc(vocKey(year, m)).get(); if (d.exists) window.VOC_GRANT[d.id] = d.data(); } } catch (e) {}
+        }
+        const md = months.map(m => vocMonthData(year, m));
+        const fromGrant = months.filter((m, i) => md[i].fromGrant).map(m => VOC_MONTHS[m]);
+        const defaults = months.filter((m, i) => !md[i].fromGrant).map(m => VOC_MONTHS[m]);
+
         const perMonth = vals => (vals.length > 1 && vals.every(v => v === vals[0]))
             ? `${inr(vals[0])} per month`
             : joinAnd(months.map((m, i) => `${inr(vals[i])} for ${VOC_MONTHS[m]}`));
-
-        const honRate = VOC_AUTO.honorarium.reduce((s, r) => s + r[1], 0);
-        const baseRec = VOC_AUTO.monthly.reduce((s, r) => s + r[1], 0);
-        const xVals = months.map(m => VOC_AUTO.xPlus[m] !== undefined ? VOC_AUTO.xPlus[m] : VOC_AUTO.xDefault);
-        const honVals = months.map(() => honRate);
-        const recVals = xVals.map(x => baseRec + x);
+        const aggregate = key => {
+            const map = new Map();
+            md.forEach(d => d[key].forEach(r => { const k = String(r.label).trim(); map.set(k, (map.get(k) || 0) + (Number(r.amt) || 0)); }));
+            return [...map.entries()];
+        };
+        const honVals = md.map(d => vocSumItems(d.adm));
+        const recVals = md.map(d => vocSumItems(d.oth));
+        const dedVals = md.map(d => d.deduction || 0);
         const sum = a => a.reduce((s, v) => s + v, 0);
         const useHon = cat !== "rec", useRec = cat !== "hon";
-        const totVals = months.map((m, i) => (useHon ? honVals[i] : 0) + (useRec ? recVals[i] : 0));
-        const total = sum(totVals);
+        const ded = (useHon && useRec) ? sum(dedVals) : 0;
+        const gross = (useHon ? sum(honVals) : 0) + (useRec ? sum(recVals) : 0);
+        const total = gross - ded;
+        const totVals = months.map((m, i) => (useHon ? honVals[i] : 0) + (useRec ? recVals[i] : 0) - ((useHon && useRec) ? dedVals[i] : 0));
 
         const period = joinAnd(months.map(m => VOC_MONTHS[m])) + " " + year;
-        const honText = `the monthly rates: ` + VOC_AUTO.honorarium.map(r => `${r[0]} at ${inr(r[1])}`).join("; ");
-        const recText = `consistent monthly costs of ` +
-            joinAnd(VOC_AUTO.monthly.map(r => `${inr(r[1])} for ${r[0]}`)) +
-            `, alongside X+ training materials of ${perMonth(xVals)}`;
+        const itemsText = arr => arr.map(([l, v]) => `${l} ${inr(v)}`).join("; ");
+        const honText = `Administrative Honorarium items: ` + itemsText(aggregate("adm"));
+        const recText = `Other Recurring Expenses items: ` + itemsText(aggregate("oth"));
         let text;
         if (useHon && useRec) {
-            text = `Payment towards Vocational (VOC) expenses for ${period}, total ${inr(total)} (${perMonth(totVals)}), in two categories: ` +
-                `(A) Administrative Honorarium ${inr(sum(honVals))} (${perMonth(honVals)}), comprising ${honText}; ` +
-                `(B) Other Recurring Expenses ${inr(sum(recVals))} (${perMonth(recVals)}), comprising ${recText}.`;
+            text = `Payment towards Vocational (VOC) expenses for ${period}, net ${inr(total)} (${perMonth(totVals)}), in two categories: ` +
+                `(A) Administrative Honorarium ${inr(sum(honVals))}, ${honText}; ` +
+                `(B) Other Recurring Expenses ${inr(sum(recVals))}, ${recText}${ded ? "; less deduction " + inr(ded) : ""}.`;
         } else if (useHon) {
-            text = `Payment towards Vocational (VOC) Administrative Honorarium for ${period}, total ${inr(total)} (${perMonth(honVals)}), comprising ${honText}.`;
+            text = `Payment towards Vocational (VOC) Administrative Honorarium for ${period}, total ${inr(total)} (${perMonth(honVals)}), ${honText}.`;
         } else {
-            text = `Payment towards Vocational (VOC) Other Recurring Expenses for ${period}, total ${inr(total)} (${perMonth(recVals)}), comprising ${recText}.`;
+            text = `Payment towards Vocational (VOC) Other Recurring Expenses for ${period}, total ${inr(total)} (${perMonth(recVals)}), ${recText}.`;
         }
         document.getElementById("fPur").value = text;
         document.getElementById("fAmt").value = total.toFixed(2); updWords();
+        const note = document.getElementById("vocGrantNote");
+        if (note) {
+            note.style.color = defaults.length ? "#c0392b" : "#1b7f3b";
+            note.textContent = (fromGrant.length ? "✔ From VOC Grant: " + fromGrant.join(", ") : "") +
+                (defaults.length ? (fromGrant.length ? " · " : "") + "⚠ Not saved in VOC Grant tool (built-in rates used): " + defaults.join(", ") : "");
+        }
     }
 
 
@@ -1046,7 +1091,7 @@ const persist=p=>regRef.set({...p,updatedAt:firebase.firestore.FieldValue.server
 auth.onAuthStateChanged(u=>{user=u;const on=!!u;
   $('authStatus').textContent=on?`Signed in: ${u.email}`:'View only — sign in to add / edit';
   ['authEmail','authPass','authBtn'].forEach(i=>$(i).style.display=on?'none':'inline-block');
-  ['pwBtn','outBtn'].forEach(i=>$(i).style.display=on?'inline-block':'none');render()});
+  ['pwBtn','outBtn'].forEach(i=>$(i).style.display=on?'inline-block':'none');if(on)loadVocGrant();render()});
 function signIn(){const e=$('authEmail').value.trim(),p=$('authPass').value;if(!e||!p){alert('Enter email and password.');return}
   auth.signInWithEmailAndPassword(e,p).then(()=>$('authPass').value='').catch(x=>alert('Sign-in failed: '+x.message))}
 regRef.onSnapshot(s=>{const d=s.data()||{};
@@ -1251,10 +1296,13 @@ function genVoucher(){const rows=selRows().filter(r=>/\bssm\b/i.test(r.acc)||isM
   if(rows.length>1)toast(`Opening ${rows.length} vouchers — allow pop-ups if blocked`)}
 function letterCD(R){return {chqNo:String(R[0].chNo||''),chqDate:R[0].dated||todayISO()}}
 function monthsIn(t){return VOC_MONTHS.map((m,i)=>new RegExp('\\b'+m+'\\b','i').test(t)?i:-1).filter(i=>i>=0)}
-function vocRows(R){const r=R[0],idx=monthsIn(r.purpose);let n=idx.length,period='';
-  if(n){const yr=(String(r.purpose).match(/\b(20\d\d)\b/)||[])[1]||String(r.dated||'').slice(0,4);period=(n===1?VOC_MONTHS[idx[0]].slice(0,3):VOC_MONTHS[idx[0]].slice(0,3)+'–'+VOC_MONTHS[idx[n-1]].slice(0,3))+' '+yr}
+function vocRows(R){const r=R[0],idx=monthsIn(r.purpose);let n=idx.length,period='',yr='';
+  if(n){yr=(String(r.purpose).match(/\b(20\d\d)\b/)||[])[1]||String(r.dated||'').slice(0,4);period=(n===1?VOC_MONTHS[idx[0]].slice(0,3):VOC_MONTHS[idx[0]].slice(0,3)+'–'+VOC_MONTHS[idx[n-1]].slice(0,3))+' '+yr}
   else{n=parseInt(prompt('No month found in the purpose. How many months of honorarium?','1'),10)||1}
-  return VOCATIONAL_DEFAULT_PAYEES.map((p,i)=>{const rate=VOC_AUTO.honorarium[i]?VOC_AUTO.honorarium[i][1]:0;return {...p,amount:rate?String(rate*n):'',remarks:rate?`Honorarium ${period}`.trim():''}})}
+  const nm=x=>String(x).split('(')[0].trim().toLowerCase();
+  return VOCATIONAL_DEFAULT_PAYEES.map((p,i)=>{const def=VOC_AUTO.honorarium[i]?VOC_AUTO.honorarium[i][1]:0;let amt=def*n;
+    if(idx.length){amt=0;idx.forEach(m=>{const d=vocMonthData(yr,m);const hit=d.adm.find(a=>nm(a.label)===p.name.toLowerCase()||nm(a.label).includes(p.name.toLowerCase().split(' ').slice(0,2).join(' ')));amt+=hit?(Number(hit.amt)||0):def})}
+    return {...p,amount:amt?String(amt):'',remarks:amt?`Honorarium ${period}`.trim():''}})}
 const MDM_SHOW=['Shital Chhaya Mahila SHG','Subhadip Chakraborty','Tribhanga Khan','Kishor Ghosh'];
 const MDM_MATCH=[/chh?aya|mahila/i,/subhadip/i,/tribhanga/i,/kishor/i,/dhiren/i];
 function toggleMdmAuto(){const b=$('mdmAutoBox');if(b)b.style.display=/mdm/i.test($('fAcc').value)?'block':'none'}
