@@ -1566,9 +1566,7 @@ function openDoc(title,inner){const w=window.open('','_blank');if(!w){alert('Ple
 const lh=()=>`<div class="lh"><b>${SCHOOL}</b><span>P.O. &amp; Block: Taldangra · Dist.: Bankura · PIN 722152</span></div>`;
 const sign=(a,b)=>`<div class="sign"><div>Prepared By<br><br>______________</div><div>${a}<br>${b}</div></div>`;
 const meta=(a,b)=>`<div class="meta"><div>${a.map(x=>`<span>${x}</span>`).join('')}</div><div>${b.map(x=>`<span>${x}</span>`).join('')}</div></div>`;
-function shortPur(r){let p=String(r.purpose||'').replace(/\s+/g,' ').trim().replace(/^payment\s+(towards|for|of)\s+/i,'');
-  const m=p.match(/^(.*?)(?:,\s*(?:total|net)\b|[,;]?\s*payee-?wise\b)/i);if(m&&m[1]){p=m[1].trim()+' (details as per voucher)'}
-  p=p.replace(/[.\s]+$/,'');if(p.length>140)p=p.slice(0,137).replace(/\s+\S*$/,'')+'…';return p}
+function shortPur(r){let p=String(r.purpose||'').replace(/\s+/g,' ').trim().replace(/^payment\s+(towards|for|of)\s+/i,'');return p.replace(/[.\s]+$/,'')}
 function details(rows){let h='<div class="pts">';rows.forEach((r,i)=>{const a=Number(r.amount)||0;
   h+=`<p class="rs"><b>${i+1}.</b> Resolved that <b>₹ ${money(a)}</b> (${esc(numToWords(Math.floor(a)))}) be paid to <b>${esc(r.to)}</b> by Cheque No. <b>${esc(r.chNo)}</b> dated <b>${fd(r.dated)}</b>, debited to the <b>${esc(fundName(r.acc))} Fund</b> (A/C No. ${esc(acNo(r.acc))}), towards ${esc(shortPur(r))}.</p>`});return h+'</div>'}
 /* Resolution only: payee-wise table with Cheque / Cash split, checked against the cheque amount */
@@ -1586,9 +1584,21 @@ function resPayees(r){
   let p=null;try{p=voucherPayees(r)}catch(e){}
   p=(p||[]).filter(x=>x.name&&parseFloat(x.amount)>0).map(x=>({name:x.name,tot:parseFloat(x.amount),ch:parseFloat(x.amount),ca:0}));
   return p.length>1?p:null}
+/* "(Cash Payent-Name-Amount,Name-Amount,Oct'26-DUE)" in the register purpose -> breakdown table */
+function resCashTbl(r,a){
+  const m=String(r.purpose||'').match(/\(\s*Cash\s*Pay\w*\s*[-:]\s*([^)]*)\)/i);if(!m)return '';
+  const items=m[1].split(',').map(t=>t.trim()).filter(Boolean).map(t=>{const k=t.lastIndexOf('-');
+    if(k<1)return null;const nm=t.slice(0,k).trim(),v=t.slice(k+1).trim(),n=parseFloat(v.replace(/,/g,''));
+    return {nm,n:/^[0-9][0-9,]*(\.\d+)?$/.test(v)?n:null,v}}).filter(Boolean);
+  if(!items.length)return '';
+  const tot=items.reduce((t,x)=>t+(x.n||0),0),okm=Math.abs(tot-a)<0.5;
+  return `<table><colgroup><col style="width:8%"><col style="width:62%"><col style="width:30%"></colgroup><thead><tr><th>Sl</th><th>Cash payment — Payee / Particulars</th><th>Amount ₹</th></tr></thead><tbody>`
+   +items.map((x,k)=>`<tr><td class="c">${k+1}</td><td>${esc(x.nm)}</td><td class="r">${x.n!=null?money(x.n):'<b>'+esc(x.v)+'</b>'}</td></tr>`).join('')
+   +`<tr><td colspan="2" class="r"><b>TOTAL</b></td><td class="r"><b>${money(tot)}</b></td></tr></tbody></table>`
+   +`<p class="sp j">Total <b>Rs. ${money(tot)}</b> (${esc(numToWords(Math.floor(tot)))}) — ${okm?'matched with the cheque amount ✔':`<span style="color:#B91C1C">does not match the cheque amount ₹ ${money(a)} (difference ₹ ${money(a-tot)})</span>`}.</p>`}
 function resDetails(rows){let h='<div class="pts">';rows.forEach((r,i)=>{const a=Number(r.amount)||0;
   h+=`<p class="rs"><b>${i+1}.</b> Resolved that <b>₹ ${money(a)}</b> (${esc(numToWords(Math.floor(a)))}) be paid to <b>${esc(r.to)}</b> by Cheque No. <b>${esc(r.chNo)}</b> dated <b>${fd(r.dated)}</b>, debited to the <b>${esc(fundName(r.acc))} Fund</b> (A/C No. ${esc(acNo(r.acc))}), towards ${esc(shortPur(r))}.</p>`;
-  const p=resPayees(r);
+  const p=resPayees(r);if(!p)h+=resCashTbl(r,a);
   if(p){const hasCash=p.some(x=>x.ca>0),sc=p.reduce((t,x)=>t+x.ch,0),sa=p.reduce((t,x)=>t+x.ca,0),st=p.reduce((t,x)=>t+x.tot,0),okm=Math.abs(sc-a)<0.5;
     h+=`<table><colgroup><col style="width:6%"><col style="width:38%"><col style="width:18%"><col style="width:20%"><col style="width:18%"></colgroup><thead><tr><th>Sl</th><th>Payee</th><th>Total ₹</th><th>By Cheque ₹</th><th>By Cash ₹</th></tr></thead><tbody>`
      +p.map((x,k)=>`<tr><td class="c">${k+1}</td><td>${esc(x.name)}</td><td class="r">${money(x.tot)}</td><td class="r">${money(x.ch)}</td><td class="r">${x.ca?money(x.ca):'—'}</td></tr>`).join('')
@@ -1627,18 +1637,18 @@ ${rows.some(r=>!isMDM(r))?`<p class="j">Payments other than MDM are recommended 
 function dHoi(rows){return `<section class="doc">${lh()}<h2 class="dt">HEAD OF INSTITUTION (HOI) REPORT</h2>
 ${meta([`HOI Report No.: <b>${ref('hoi')}</b>`],[`Based on Finance Sub-Committee Meeting: <b>${ref('fin')}</b>`])}
 <p class="j">As per the recommendation of the Finance Sub-Committee, the payments below are placed for passing. The bills, vouchers, cheque book and Cheque Issue Register have been checked and are placed before the Administrator for approval.</p>
-${details(rows)}${tbl(rows)}${remNote(rows)}
+${resDetails(rows)}${tbl(rows)}${remNote(rows)}
 <div class="sign"><div>Verified By<br><br>______________</div><div>Prabir Kumar Dangar<br>HOI</div></div></section>`}
 function dAdmn(rows){return `<section class="doc">${lh()}<h2 class="dt">ADMINISTRATOR APPROVAL ORDER</h2>
 ${meta([`Order No.: <b>${ref('admn')}</b>`],[`Finance Sub-Committee: <b>${ref('fin')}</b>`,`HOI Report: <b>${ref('hoi')}</b>`])}
 <p class="j">On the recommendation of the Finance Sub-Committee and the report of the HOI, the following cheques are passed and approved for payment to the respective beneficiaries.</p>
-${details(rows)}${tbl(rows)}${remNote(rows)}
+${resDetails(rows)}${tbl(rows)}${remNote(rows)}
 <div class="sign"><div>Prepared By<br><br>______________</div><div><b>ADMINISTRATOR</b><br>${SCHOOL}</div></div></section>`}
 function dMdmSlip(rows){let g=0;const body=rows.map((r,i)=>{const a=Number(r.amount)||0;g+=a;return `<tr><td class="c">${i+1}</td><td><b>${esc(r.to)}</b></td><td>${esc(r.chNo)}<br>dt. ${fd(r.dated)}</td><td class="r"><b>${money(a)}</b></td><td>${esc(numToWords(Math.floor(a)))}</td><td></td></tr>`}).join('');
   return `<section class="doc full">${lh()}<h2 class="dt">PAYMENT ORDER — MDM FUND (COMMON)</h2>
 ${meta([`Meeting No.: <b>${ref('fin')}</b>`,`Payment Order Sl.: <b>MDM / ${rows.length} cheque(s)</b>`],[`Debit A/C: <b>MDM Fund — A/C No. ${esc(acNo(rows[0].acc))}</b>`,`Issued by: <b>Finance Sub-Committee</b>`])}
 <p class="j">The Finance Sub-Committee, after checking the bills and vouchers, has sanctioned the MDM payments below${mdmPeriods(rows)?' for '+esc(mdmPeriods(rows)):''} and ordered issue of the cheque(s) to the payees. No separate HOI Report / Administrator Order is required.</p>
-${details(rows)}
+${resDetails(rows)}
 <table><colgroup><col style="width:5%"><col style="width:26%"><col style="width:17%"><col style="width:14%"><col style="width:22%"><col style="width:16%"></colgroup><thead><tr><th>Sl</th><th>Payee</th><th>Cheque No. &amp; Date</th><th>Amount (₹)</th><th>Amount in words</th><th>Recipient's Signature</th></tr></thead><tbody>${body}<tr><td colspan="3" class="r"><b>TOTAL</b></td><td class="r"><b>${money(g)}</b></td><td colspan="2"><b>${esc(numToWords(Math.floor(g)))}</b></td></tr></tbody></table>
 <div class="foot"><div style="flex:1"><h3>Finance Sub-Committee — signatures</h3>${memTbl('Signature')}</div><div class="seal">SEAL</div></div></section>`}
 function dSlips(rows){const h=rows.map((r,i)=>{const sl=String(i+1).padStart(2,'0'),a=Number(r.amount)||0;
