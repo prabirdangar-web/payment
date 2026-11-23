@@ -1009,6 +1009,7 @@ ${WT_INJECT()}
 
     document.getElementById('chequeDetails').addEventListener('input', function() {
         document.getElementById('recChequeDetails').innerText = this.value;
+        if (window.checkSum) checkSum();
     });
 
     function numberToWords(num) {
@@ -1037,6 +1038,7 @@ ${WT_INJECT()}
         document.querySelectorAll('.pm').forEach(function(i) { t += parseFloat(i.value) || 0; });
         document.getElementById('amountNum').value = t ? String(Math.round(t * 100) / 100) : '';
         updateAmountWords();
+        if (window.checkSum) checkSum();
         document.getElementById('payTotal').innerText = t ? t.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
     }
 
@@ -1106,12 +1108,20 @@ ${WT_INJECT()}
         document.querySelectorAll('.payee-table input, .payee-table textarea, #toWhomPaid, #chequeDetails').forEach(function(el) { el.style.fontSize = ''; fitEl(el); });
         var pt2 = document.getElementById('payTotal'); if (pt2) { pt2.style.fontSize = ''; fitEl(pt2); }
     }
+    function cashPart() {
+        var el = document.getElementById('chequeDetails'); if (!el) return 0;
+        var v = String(el.value || '');
+        var m = v.match(/[+] *(?:Rs[.]?|₹)? *([0-9,]+(?:[.][0-9]+)?) *(?:[/]-)? *(?:by +)?cash/i) || v.match(/cash *(?:of +)?(?:Rs[.]?|₹)? *([0-9,]+(?:[.][0-9]+)?)/i);
+        return m ? (parseFloat(m[1].replace(/,/g, '')) || 0) : 0;
+    }
     function checkSum() {
         var n = document.getElementById('payDiff'); if (!n) return;
-        var chq = parseFloat(n.getAttribute('data-chq')) || 0, t = 0;
+        var chq = parseFloat(n.getAttribute('data-chq')) || 0, t = 0, cash = cashPart();
         document.querySelectorAll('.pm').forEach(function(i) { t += parseFloat(i.value) || 0; });
-        var d = Math.round((chq - t) * 100) / 100;
-        n.textContent = (chq && Math.abs(d) > 0.005) ? ('Payee total differs from cheque amount Rs. ' + chq + ' by Rs. ' + d + ' (not printed)') : '';
+        var exp = Math.round((chq + cash) * 100) / 100, d = Math.round((exp - t) * 100) / 100;
+        if (cash && Math.abs(d) <= 0.005) { n.style.color = '#1b7f3b'; var an = document.getElementById('amountNum'); if (an && parseFloat(an.value) !== exp) { an.value = String(exp); updateAmountWords(); }
+            n.textContent = 'Cheque Rs. ' + chq + ' + Cash Rs. ' + cash + ' = Rs. ' + exp + ' matches payee total (not printed)'; }
+        else { n.style.color = ''; n.textContent = (chq && Math.abs(d) > 0.005) ? ('Payee total differs from cheque' + (cash ? ' + cash' : '') + ' amount Rs. ' + exp + ' by Rs. ' + d + ' (not printed)') : ''; }
     }
     var fitT = null;
     document.addEventListener('input', function(e) {
