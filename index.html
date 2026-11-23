@@ -1571,6 +1571,30 @@ function shortPur(r){let p=String(r.purpose||'').replace(/\s+/g,' ').trim().repl
   p=p.replace(/[.\s]+$/,'');if(p.length>140)p=p.slice(0,137).replace(/\s+\S*$/,'')+'…';return p}
 function details(rows){let h='<div class="pts">';rows.forEach((r,i)=>{const a=Number(r.amount)||0;
   h+=`<p class="rs"><b>${i+1}.</b> Resolved that <b>₹ ${money(a)}</b> (${esc(numToWords(Math.floor(a)))}) be paid to <b>${esc(r.to)}</b> by Cheque No. <b>${esc(r.chNo)}</b> dated <b>${fd(r.dated)}</b>, debited to the <b>${esc(fundName(r.acc))} Fund</b> (A/C No. ${esc(acNo(r.acc))}), towards ${esc(shortPur(r))}.</p>`});return h+'</div>'}
+/* Resolution only: payee-wise table with Cheque / Cash split, checked against the cheque amount */
+function resPayees(r){
+  const num=s=>parseFloat(String(s).replace(/,/g,''))||0,out=[];
+  const m=String(r.purpose||'').split(/payee-?wise\s*:/i);
+  if(m.length>1)m[1].split(';').forEach(seg=>{seg=seg.trim().replace(/[.\s]+$/,'');
+    const x=seg.match(/^(.*?)[\s:\-–]*(?:₹|Rs\.?|INR)\s*([0-9][0-9,]*(?:\.\d+)?)\s*(?:\((.*)\))?$/i);
+    if(!x||!x[1].trim())return;
+    const tot=num(x[2]),note=x[3]||'';
+    const c=note.match(/Ch(?:eque)?\s*[-:]?\s*([0-9][0-9,]*(?:\.\d+)?)/i),k=note.match(/Cash\s*[-:]?\s*([0-9][0-9,]*(?:\.\d+)?)/i);
+    let ch=c?num(c[1]):tot,ca=k?num(k[1]):0;if(!c&&k)ch=tot-ca;
+    out.push({name:x[1].trim(),tot,ch,ca})});
+  if(out.length>1)return out;
+  let p=null;try{p=voucherPayees(r)}catch(e){}
+  p=(p||[]).filter(x=>x.name&&parseFloat(x.amount)>0).map(x=>({name:x.name,tot:parseFloat(x.amount),ch:parseFloat(x.amount),ca:0}));
+  return p.length>1?p:null}
+function resDetails(rows){let h='<div class="pts">';rows.forEach((r,i)=>{const a=Number(r.amount)||0;
+  h+=`<p class="rs"><b>${i+1}.</b> Resolved that <b>₹ ${money(a)}</b> (${esc(numToWords(Math.floor(a)))}) be paid to <b>${esc(r.to)}</b> by Cheque No. <b>${esc(r.chNo)}</b> dated <b>${fd(r.dated)}</b>, debited to the <b>${esc(fundName(r.acc))} Fund</b> (A/C No. ${esc(acNo(r.acc))}), towards ${esc(shortPur(r))}.</p>`;
+  const p=resPayees(r);
+  if(p){const hasCash=p.some(x=>x.ca>0),sc=p.reduce((t,x)=>t+x.ch,0),sa=p.reduce((t,x)=>t+x.ca,0),st=p.reduce((t,x)=>t+x.tot,0),okm=Math.abs(sc-a)<0.5;
+    h+=`<table><colgroup><col style="width:6%"><col style="width:38%"><col style="width:18%"><col style="width:20%"><col style="width:18%"></colgroup><thead><tr><th>Sl</th><th>Payee</th><th>Total ₹</th><th>By Cheque ₹</th><th>By Cash ₹</th></tr></thead><tbody>`
+     +p.map((x,k)=>`<tr><td class="c">${k+1}</td><td>${esc(x.name)}</td><td class="r">${money(x.tot)}</td><td class="r">${money(x.ch)}</td><td class="r">${x.ca?money(x.ca):'—'}</td></tr>`).join('')
+     +`<tr><td colspan="2" class="r"><b>TOTAL</b></td><td class="r"><b>${money(st)}</b></td><td class="r"><b>${money(sc)}</b></td><td class="r"><b>${sa?money(sa):'—'}</b></td></tr></tbody></table>`
+     +`<p class="sp j"><b>Rs. ${money(sc)}</b> (through Cheque No. ${esc(r.chNo)})${hasCash?` + <b>Rs. ${money(sa)}</b> (by cash through HM) = <b>Rs. ${money(st)}</b>`:''} — ${okm?'matched with the cheque amount ✔':`<span style="color:#B91C1C">does not match the cheque amount ₹ ${money(a)} (difference ₹ ${money(a-sc)})</span>`}.</p>`}});
+  return h+'</div>'}
 function totLine(rows){const g=rows.reduce((t,r)=>t+(Number(r.amount)||0),0);return `<p class="words">Total of ${rows.length} cheque${rows.length>1?'s':''}: ₹ ${money(g)} (${esc(numToWords(Math.floor(g)))})</p>`}
 function tbl(rows){const funds=[...new Set(rows.map(r=>fundName(r.acc)))];let g=0,b='';
   rows.forEach((r,i)=>{const a=Number(r.amount)||0;g+=a;b+=`<tr><td class="c">${i+1}</td><td><b>${esc(fundName(r.acc))}</b><br>A/C ${esc(acNo(r.acc))}</td><td>${esc(r.to)}</td><td>${esc(r.chNo)}<br>dt. ${fd(r.dated)}</td><td class="r"><b>${money(a)}</b></td></tr>`});
@@ -1596,7 +1620,7 @@ function dRes(rows){const m=rows.map((r,i)=>isMDM(r)?i+1:0).filter(Boolean);
 ${meta([`Meeting No.: <b>${ref('fin')}</b>`,`Held on: <b>${fd(refs.finDate)}</b>`],[`Time: <b>${ftime(refs.finTime)}</b>`,`Venue: <b>HM's Office</b>`,`Chair: <b>HM</b>`])}
 <h3>Members present</h3>${memTbl('Signature')}
 <p class="j">The meeting was held under the Chairmanship of the Headmaster. After examining the bills and vouchers placed by the HM, the Committee unanimously resolved as follows:</p>
-${details(rows)}${totLine(rows)}${remNote(rows)}
+${resDetails(rows)}${totLine(rows)}${remNote(rows)}
 ${m.length?`<p class="j"><b>MDM (Point${m.length>1?'s':''} ${m.join(', ')}):</b> ${mdmPeriods(rows)?'Payment for '+esc(mdmPeriods(rows))+'. ':''}${MDM_NOTE}</p>`:''}
 ${rows.some(r=>!isMDM(r))?`<p class="j">Payments other than MDM are recommended to the HOI for report and to the Administrator for approval.</p>`:''}
 <div class="sign"><div>Prepared By<br><br>______________</div><div>Checked By<br><br>______________</div><div>Prabir Kumar Dangar<br>HM / Chairperson</div></div></section>`}
