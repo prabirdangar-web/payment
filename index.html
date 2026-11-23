@@ -1693,14 +1693,23 @@ function genVoucher(){const rows=selRows().filter(r=>/\bssm\b/i.test(r.acc)||isM
     openLetterWindow(buildSSMDebitVoucherHTML(v))},i*500));
   if(rows.length>1)toast(`Opening ${rows.length} vouchers — allow pop-ups if blocked`)}
 function letterCD(R){return {chqNo:String(R[0].chNo||''),chqDate:R[0].dated||todayISO()}}
-function monthsIn(t){return VOC_MONTHS.map((m,i)=>new RegExp('\\b'+m+'\\b','i').test(t)?i:-1).filter(i=>i>=0)}
-function vocRows(R){const r=R[0],idx=monthsIn(r.purpose);let n=idx.length,period='',yr='';
+function monthsIn(t){t=String(t||'');const AB=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const mi=w=>{w=w.toLowerCase();return VOC_MONTHS.findIndex((m,i)=>m.toLowerCase()===w||AB[i].toLowerCase()===w||(i===8&&w==='sept'))};
+  const set=new Set(),re=/\b(January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sept|Sep|Oct|Nov|Dec)\b/gi;let x;
+  while((x=re.exec(t))){const i=mi(x[1]);if(i>=0)set.add(i)}
+  const rg=t.match(/\b(January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sept|Sep|Oct|Nov|Dec)\b\W{0,4}(?:\d{2,4})?\s*(?:to|till|until|-|–)\s*(January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sept|Sep|Oct|Nov|Dec)\b/i);
+  if(rg){let a=mi(rg[1]),b=mi(rg[2]);if(a>=0&&b>=0){if(b<a)b+=12;for(let k=a;k<=b;k++)set.add(k%12)}}
+  return [...set].sort((a,b)=>a-b)}
+function vocRows(R){const rows=vocRows0(R),r=R[0],chq=Number(r.amount)||0,tot=rows.reduce((t,x)=>t+(parseFloat(x.amount)||0),0);
+  if(chq&&Math.abs(tot-chq)>0.5){const alt=rows.map(x=>({...x,amount:x._def?String(x._def):x.amount}));if(Math.abs(alt.reduce((t,x)=>t+(parseFloat(x.amount)||0),0)-chq)<0.5)return alt}
+  return rows}
+function vocRows0(R){const r=R[0],idx=monthsIn(r.purpose);let n=idx.length,period='',yr='';
   if(n){yr=(String(r.purpose).match(/\b(20\d\d)\b/)||[])[1]||String(r.dated||'').slice(0,4);period=(n===1?VOC_MONTHS[idx[0]].slice(0,3):VOC_MONTHS[idx[0]].slice(0,3)+'–'+VOC_MONTHS[idx[n-1]].slice(0,3))+' '+yr}
   else{n=parseInt(prompt('No month found in the purpose. How many months of honorarium?','1'),10)||1}
   const nm=x=>String(x).split('(')[0].trim().toLowerCase();
   return VOCATIONAL_DEFAULT_PAYEES.map((p,i)=>{const def=VOC_AUTO.honorarium[i]?VOC_AUTO.honorarium[i][1]:0;let amt=def*n;
     if(idx.length){amt=0;idx.forEach(m=>{const d=vocMonthData(yr,m);const hit=d.adm.find(a=>nm(a.label)===p.name.toLowerCase()||nm(a.label).includes(p.name.toLowerCase().split(' ').slice(0,2).join(' ')));amt+=hit?(Number(hit.amt)||0):def})}
-    return {...p,amount:amt?String(amt):'',remarks:amt?`Honorarium ${period}`.trim():''}})}
+    return {...p,_def:def*n,amount:amt?String(amt):'',remarks:amt?`Honorarium ${period}`.trim():''}})}
 const MDM_SHOW=['Shital Chhaya Mahila SHG','Subhadip Chakraborty','Tribhanga Khan','Kishor Ghosh'];
 const MDM_MATCH=[/chh?aya|mahila/i,/subhadip/i,/tribhanga/i,/kishor/i,/dhiren/i];
 function toggleMdmAuto(){const b=$('mdmAutoBox');if(b)b.style.display=/mdm/i.test($('fAcc').value)?'block':'none'}
@@ -1717,7 +1726,11 @@ function generateMdmPurpose(){const inr=n=>'₹'+Number(n).toLocaleString('en-IN
 /* read "payee-wise: Name ₹amt; Name ₹amt" (or free text like "Kishor Ghosh Rs 2500") from a bulk MDM cheque's purpose/remarks */
 function mdmParse(t){t=String(t||'');const out=[];const m=t.split(/payee-?wise\s*:/i);
   if(m.length>1){m[1].split(';').forEach(seg=>{const x=seg.trim().match(/^(.*?)[\s:\-–]*(?:₹|Rs\.?|INR)\s*([0-9][0-9,]*(?:\.\d+)?)\s*\.?$/i);if(x&&x[1].trim())out.push([x[1].trim(),parseFloat(x[2].replace(/,/g,''))])});if(out.length)return out}
-  MDM_MATCH.forEach((re,i)=>{const x=t.match(new RegExp('('+re.source+')[^0-9₹]{0,40}?(?:₹|Rs\\.?|INR)?\\s*([0-9][0-9,]*(?:\\.\\d+)?)','i'));if(x)out.push([MDM_SHOW[i]||'Dhiren Dey',parseFloat(x[2].replace(/,/g,''))])});
+  /* narrative: "to Name (item) for May-26 Rs.1, Jun-26 Rs.2, totalling Rs.T; and to Name2 ... totalling Rs.T2" -> use each payee's TOTAL */
+  t.split(/;|\band\s+to\b/i).forEach(seg=>{const tm=seg.match(/totall?ing\s*(?:₹|Rs\.?|INR)\s*([0-9][0-9,]*(?:\.\d+)?)/i);if(!tm)return;
+    const i=MDM_MATCH.findIndex(re=>re.test(seg));if(i<0)return;out.push([MDM_SHOW[i]||'Dhiren Dey',parseFloat(tm[1].replace(/,/g,''))])});
+  if(out.length)return out;
+  MDM_MATCH.forEach((re,i)=>{const x=t.match(new RegExp('('+re.source+')[^0-9₹]{0,40}?(?:₹|Rs\\.?|INR)\\s*([0-9][0-9,]*(?:\\.\\d+)?)','i'));if(x)out.push([MDM_SHOW[i]||'Dhiren Dey',parseFloat(x[2].replace(/,/g,''))])});
   return out}
 function mdmRows(R){const defs=MDM_DEFAULT_PAYEES.slice(0,5).map(r=>({...r,amount:'',remarks:''}));const extra=[];let RM='';
   const rmk=o=>{if(RM&&!o.remarks.includes(RM))o.remarks=o.remarks?o.remarks+'; '+RM:RM;return o};
