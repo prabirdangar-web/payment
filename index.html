@@ -693,7 +693,7 @@ const WT_INJECT = () => '<style>' + WT_CSS + '</style>' + WT_HTML + '<script>(' 
             '<td><textarea class="pn" rows="1">' + pe(x.name) + '</textarea></td>' +
             '<td><input type="text" class="pa" value="' + pe(x.acc) + '"></td>' +
             '<td><input type="number" step="any" min="0" class="pm" value="' + pe(x.amount) + '" oninput="recalcPayees()"></td>' +
-            '<td class="sg"></td></tr>').join('') : '';
+            '<td class="sg"><div class="stamp">REVENUE<br>STAMP</div></td></tr>').join('') : '';
         const multiReceiptHtml = `<div class="receipt-section multi-rec">
         <div class="receipt-row">
             <span class="inline-label">Received a sum of Rs.</span>
@@ -726,6 +726,7 @@ const WT_INJECT = () => '<style>' + WT_CSS + '</style>' + WT_HTML + '<script>(' 
         ${remHtml}
 
         <div class="receipt-signature">
+            <div class="stampbox">AFFIX<br>REVENUE STAMP</div>
             <div class="line"></div>
             <div class="text">Signature of Recipient</div>
         </div>
@@ -827,6 +828,16 @@ body.multi .form-table { margin-bottom: 10px; }
 body.multi .form-table td { padding: 6px 10px; font-size: 15px; }
 body.multi .signature-auth-row { margin-top: 12px; margin-bottom: 6px; }
 body.multi .receipt-section { padding-top: 12px; }
+body.multi .meta-section .meta-row:first-child { display: block; }
+body.multi .meta-section .meta-row:first-child .meta-input-flex { margin-left: 0; }
+body.multi .meta-section .meta-row:first-child .meta-label { padding-top: 0; }
+.school-print { display: none; font-size: 18px; font-weight: bold; line-height: 1.3; overflow-wrap: break-word; }
+#schoolNameSelect, #manualSchoolInput { line-height: 1.3; }
+.payee-table td { vertical-align: middle; }
+.payee-table td.sg { position: relative; }
+.payee-table td.sg .stamp { position: absolute; top: 3px; bottom: 3px; left: 6px; aspect-ratio: 1 / 1; max-width: 60%; border: 1px dashed #999; color: #aaa; font-size: 7px; font-weight: bold; display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1.15; }
+.stampbox { width: 26mm; height: 21mm; border: 1px dashed #999; color: #aaa; font-size: 8px; font-weight: bold; display: flex; align-items: center; justify-content: center; text-align: center; margin-bottom: 8px; line-height: 1.2; }
+body.multi .signature-auth-row { margin-top: 26px; margin-bottom: 8px; }
 div.purpose-textarea { width: 100%; border-bottom: 1px dashed #000; padding: 4px 6px; font-weight: bold; background: #fcfdfe; outline: none; white-space: pre-wrap; overflow-wrap: anywhere; word-break: normal; }
 .purpose-textarea p { margin: 0; }
 .rem-text { outline: none; white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -837,6 +848,8 @@ div.purpose-textarea { width: 100%; border-bottom: 1px dashed #000; padding: 4px
     .voucher-container { border: 2px solid #000; width: 210mm; height: 296mm; box-shadow: none; padding: 40px 45px; margin: 0; page-break-inside: avoid; }
     .voucher-container::before { border: 1px solid #000; }
     body[data-school-mode="MANUAL"] #schoolNameSelect { display: none !important; }
+    body[data-school-mode="DEFAULT"] #schoolNameSelect { display: none !important; }
+    body[data-school-mode="DEFAULT"] .school-print { display: block; }
     body[data-head-mode="MANUAL"] #headAccount { display: none !important; }
     select, input[type="text"], input[type="number"], input[type="date"], textarea, .inline-fill, div.purpose-textarea {
         background-color: transparent !important; border-bottom: none !important; padding: 2px 0 !important;
@@ -876,6 +889,7 @@ ${WT_INJECT()}
                         <option value="MANUAL">OTHER SCHOOL (MANUAL ENTRY)</option>
                     </select>
                     <textarea id="manualSchoolInput" rows="2" style="display: none; margin-top: 8px;" placeholder="Type Custom School Name Manually Here..."></textarea>
+                    <div id="schoolNameText" class="school-print"></div>
                 </div>
             </div>
             <div class="meta-row">
@@ -978,6 +992,7 @@ ${WT_INJECT()}
             manualInput.style.display = 'none';
             document.body.setAttribute('data-school-mode', 'DEFAULT');
         }
+        if (window.fitAll) fitAll();
     }
 
     function checkHeadAccount(selectElement) {
@@ -1044,7 +1059,7 @@ ${WT_INJECT()}
 
     var dynStyle = document.createElement('style'); document.head.appendChild(dynStyle);
     function setRowStyle(h, f) {
-        dynStyle.textContent = '.payee-table tbody tr{height:' + h + 'px !important}.payee-table th,.payee-table td,.payee-table input,.payee-table textarea{font-size:' + f + 'px}.payee-table textarea{height:' + (h - 6) + 'px !important}';
+        dynStyle.textContent = '.payee-table tbody tr{height:' + h + 'px !important}.payee-table th,.payee-table td,.payee-table input,.payee-table textarea{font-size:' + f + 'px}.payee-table textarea{height:' + Math.min(h - 6, 26) + 'px !important}';
     }
     function fitEl(el) {
         if (!el) return;
@@ -1052,8 +1067,22 @@ ${WT_INJECT()}
         var tooBig = function() { return el.tagName === 'TEXTAREA' ? el.scrollHeight > el.clientHeight + 1 : el.scrollWidth > el.clientWidth + 1; };
         while (tooBig() && s > 6.5 && g++ < 80) { s -= 0.5; el.style.fontSize = s + 'px'; }
     }
+    function fitSchool() {
+        var sel = document.getElementById('schoolNameSelect'), tx = document.getElementById('schoolNameText'), mn = document.getElementById('manualSchoolInput');
+        if (!sel || !tx) return;
+        var man = document.body.getAttribute('data-school-mode') === 'MANUAL', s = 18, g = 0;
+        tx.textContent = man ? mn.value : sel.value;
+        tx.style.fontSize = ''; sel.style.fontSize = ''; mn.style.fontSize = '';
+        var old = tx.style.display; tx.style.display = 'block';
+        while (tx.scrollHeight > s * 1.3 * 2 + 2 && s > 9 && g++ < 40) { s -= 0.5; tx.style.fontSize = s + 'px'; }
+        tx.style.display = old;
+        sel.style.fontSize = s + 'px';
+        var s2 = 18; g = 0; mn.style.fontSize = s2 + 'px';
+        if (man) { while (mn.scrollHeight > mn.clientHeight + 1 && s2 > 9 && g++ < 40) { s2 -= 0.5; mn.style.fontSize = s2 + 'px'; } }
+    }
     function fitAll() {
         var c = document.querySelector('.voucher-container'); if (!c) return;
+        fitSchool();
         var over = function() { return c.scrollHeight > c.clientHeight + 1; };
         var pt = !!document.querySelector('.payee-table'), h = 30, f = 14, g = 0;
         if (pt) { setRowStyle(h, f); while (over() && h > 22 && g++ < 20) { h -= 2; if (f > 11) f -= 0.5; setRowStyle(h, f); } }
@@ -1067,6 +1096,13 @@ ${WT_INJECT()}
         var k2 = 1; g = 0;
         while (over() && k2 > 0.7 && g++ < 12) { k2 -= 0.025; rm.forEach(function(e) { sz(e, k2); }); }
         if (pt) { g = 0; while (over() && h > 15 && g++ < 20) { h -= 2; if (f > 10) f -= 0.5; setRowStyle(h, f); } }
+        /* spare space between the signatures and the receipt -> taller payee rows (room for revenue stamps) */
+        if (pt && !over()) {
+            var top = c.firstElementChild, rc = document.querySelector('.receipt-section');
+            var gap = rc.getBoundingClientRect().top - top.getBoundingClientRect().bottom, n = document.querySelectorAll('.payee-table tbody tr').length || 1;
+            var add = Math.floor((gap - 30) / n);
+            if (add > 0) { h = Math.min(h + add, 120); setRowStyle(h, f); g = 0; while (over() && h > 30 && g++ < 30) { h -= 2; setRowStyle(h, f); } }
+        }
         document.querySelectorAll('.payee-table input, .payee-table textarea, #toWhomPaid, #chequeDetails').forEach(function(el) { el.style.fontSize = ''; fitEl(el); });
         var pt2 = document.getElementById('payTotal'); if (pt2) { pt2.style.fontSize = ''; fitEl(pt2); }
     }
@@ -1080,7 +1116,7 @@ ${WT_INJECT()}
     var fitT = null;
     document.addEventListener('input', function(e) {
         var t = e.target;
-        if (t.closest && t.closest('.purpose-textarea,.rem-text')) { clearTimeout(fitT); fitT = setTimeout(fitAll, 150); }
+        if ((t.closest && t.closest('.purpose-textarea,.rem-text')) || t.id === 'manualSchoolInput') { clearTimeout(fitT); fitT = setTimeout(fitAll, 150); }
         if (t.matches && t.matches('.payee-table input, .payee-table textarea, #toWhomPaid, #chequeDetails')) { t.style.fontSize = ''; fitEl(t); }
         if (t.classList && t.classList.contains('pm')) { var pt = document.getElementById('payTotal'); if (pt) { pt.style.fontSize = ''; fitEl(pt); } }
     });
@@ -1500,7 +1536,7 @@ body{margin:0;background:#DDE3EC;font-family:Arial,'Lucida Bright',sans-serif;fo
 .lh{text-align:center;border-bottom:3px double #000;padding-bottom:4px;margin-bottom:8px}.lh b{display:block;font-size:calc(17pt*var(--k,1));letter-spacing:.8px;color:#0B2545}.lh span{display:block;font-size:calc(10pt*var(--k,1))}
 h2.dt{text-align:center;font-size:calc(12.5pt*var(--k,1));letter-spacing:.6px;margin:8px 0;padding:4px 0;border-top:1.5px solid #000;border-bottom:1.5px solid #000;background:#EEF2F7}
 h3{font-size:calc(10.5pt*var(--k,1));margin:8px 0 3px;text-transform:uppercase;letter-spacing:.4px;color:#0B2545;border-bottom:1px solid #888}
-.meta{border:1px solid #000;padding:3px 8px;margin-bottom:6px;font-size:calc(10.5pt*var(--k,1))}.meta div{display:flex;justify-content:space-between;gap:12px;white-space:nowrap;padding:1px 0}
+.meta{border:1px solid #000;padding:3px 8px;margin-bottom:6px;font-size:calc(10.5pt*var(--k,1))}.meta div{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1px 14px;padding:1px 0}.meta span{white-space:nowrap}
 p{margin:4px 0}.doc{font-size:calc(10.5pt*var(--k,1))}.pts .rs{margin:3px 0;text-align:justify}.j{text-align:justify}.pts p{margin:1px 0}.pts .pt{margin-top:5px}.pts .sp{padding-left:22px;text-align:justify}
 table{width:100%;border-collapse:collapse;table-layout:fixed;margin:6px 0;font-size:calc(10pt*var(--k,1))}
 th,td{border:1px solid #000;padding:3px 5px;vertical-align:top;word-wrap:break-word}th{background:#E6EBF2;text-align:center}
