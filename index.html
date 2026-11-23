@@ -1576,7 +1576,7 @@ function resPayees(r){
   const num=s=>parseFloat(String(s).replace(/,/g,''))||0,out=[];
   const m=String(r.purpose||'').split(/payee-?wise\s*:/i);
   if(m.length>1)m[1].split(';').forEach(seg=>{seg=seg.trim().replace(/[.\s]+$/,'');
-    const x=seg.match(/^(.*?)[\s:\-–]*(?:₹|Rs\.?|INR)\s*([0-9][0-9,]*(?:\.\d+)?)\s*(?:\((.*)\))?$/i);
+    const x=seg.match(/^(.*?)[\s:\-–]*(?:₹|Rs\.?|INR)\s*([0-9][0-9,]*(?:\.\d+)?)\s*(?:\(([^)]*)\))?/i);
     if(!x||!x[1].trim())return;
     const tot=num(x[2]),note=x[3]||'';
     const c=note.match(/Ch(?:eque)?\s*[-:]?\s*([0-9][0-9,]*(?:\.\d+)?)/i),k=note.match(/Cash\s*[-:]?\s*([0-9][0-9,]*(?:\.\d+)?)/i);
