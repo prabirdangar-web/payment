@@ -223,6 +223,166 @@ details.more{margin-top:6px}details.more summary{cursor:pointer;color:var(--blue
     let currentUser = null;
 </script>
 <script>
+/* ===== Word-style one-line editing toolbar (injected into every print/edit window) ===== */
+const WT_CSS = `
+#wt,#wt *,#wtp,#wtp *{font-family:Arial,Helvetica,sans-serif!important;box-sizing:border-box}
+#wt{position:fixed;top:0;left:0;right:0;z-index:99999;background:#0B2545;padding:6px 8px;display:flex;align-items:center;gap:4px;overflow-x:auto;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.35)}
+#wt button,#wt select{height:28px;border:1px solid #9fb0c6;border-radius:6px;background:#fff!important;color:#0B2545;font-size:13px!important;font-weight:700!important;padding:0 8px!important;cursor:pointer;width:auto!important;flex:none}
+#wt button:hover{background:#FFF3B0!important}
+#wt select{padding:0 4px!important;border-bottom:1px solid #9fb0c6!important}
+#wt .sep{width:1px;height:22px;background:#6b829e;margin:0 4px;flex:none}
+#wt input[type=color]{width:34px;height:28px;padding:1px;border:1px solid #9fb0c6;border-radius:6px;background:#fff;flex:none;cursor:pointer}
+#wt .lb{color:#cfe0f5;font-size:12px;flex:none}
+#wt .pr{background:#1b9e4b!important;color:#fff!important;border-color:#1b9e4b}
+#wt #wtmsg{color:#FFD84D;font-size:12px;flex:none;margin-left:6px}
+#wtp{position:fixed;top:44px;left:8px;right:8px;z-index:99998;background:#fff;border:2px solid #0B2545;border-radius:8px;padding:6px 10px;box-shadow:0 6px 18px rgba(0,0,0,.35);font-size:13px;color:#0B2545}
+#wtp[hidden]{display:none}
+#wtp .wtr{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:5px 0;font-size:13px}
+#wtp .wtr b{min-width:78px;color:#134074}
+#wtp button{height:26px;border:1px solid #9fb0c6;border-radius:6px;background:#EEF2F7;color:#0B2545;font-size:12.5px;font-weight:700;padding:0 9px;cursor:pointer;width:auto}
+#wtp button:hover{background:#FFF3B0}
+#wtp input,#wtp select{width:auto!important;height:26px;font-size:13px!important;font-weight:600!important;border:1px solid #9fb0c6!important;border-radius:6px;background:#fff!important;padding:0 5px!important}
+#wtp input[type=number]{width:62px!important}
+#wtp input[type=color]{width:34px!important;padding:1px!important}
+table.wt-t td,table.wt-t th{border:1px solid #000;padding:3px 5px;vertical-align:top}
+.no-print,.bar{display:none!important}
+@media screen{body{padding-top:56px!important}}
+@media print{#wt,#wtp{display:none!important}.wt-pb{border:0!important;height:0!important}}
+`;
+const WT_HTML = `
+<div id="wt">
+ <button data-c="undo" title="Undo">↶</button><button data-c="redo" title="Redo">↷</button><span class="sep"></span>
+ <select data-s="fontName" title="Font"><option value="">Font</option><option>Arial</option><option>Times New Roman</option><option>Calibri</option><option>Cambria</option><option>Lucida Bright</option><option>Georgia</option><option>Verdana</option><option>Tahoma</option><option>Trebuchet MS</option><option>Courier New</option><option>Nirmala UI</option><option>Vrinda</option></select>
+ <select data-s="size" title="Size"><option value="">Size</option><option>7</option><option>8</option><option>9</option><option>10</option><option>10.5</option><option>11</option><option>12</option><option>13</option><option>14</option><option>16</option><option>18</option><option>20</option><option>24</option><option>28</option><option>36</option></select>
+ <button data-c="a+" title="Bigger">A▲</button><button data-c="a-" title="Smaller">A▼</button><span class="sep"></span>
+ <button data-c="bold" title="Bold"><b>B</b></button><button data-c="italic" title="Italic"><i>I</i></button><button data-c="underline" title="Underline"><u>U</u></button><button data-c="strikeThrough" title="Strike"><s>S</s></button><button data-c="subscript" title="Subscript">x₂</button><button data-c="superscript" title="Superscript">x²</button><button data-c="case" title="UPPER / lower / Title">Aa</button>
+ <span class="lb">A</span><input type="color" data-k="foreColor" value="#000000" title="Text colour"><span class="lb">▮</span><input type="color" data-k="hiliteColor" value="#ffff00" title="Highlight"><span class="sep"></span>
+ <button data-c="justifyLeft" title="Left">⇤</button><button data-c="justifyCenter" title="Centre">↔</button><button data-c="justifyRight" title="Right">⇥</button><button data-c="justifyFull" title="Justify">☰</button><span class="sep"></span>
+ <button data-c="insertUnorderedList" title="Bullets">• List</button><button data-c="insertOrderedList" title="Numbering">1. List</button><button data-c="indent" title="Indent">→|</button><button data-c="outdent" title="Outdent">|←</button><button data-c="first" title="First-line indent">¶→</button><span class="sep"></span>
+ <select data-s="line" title="Line spacing"><option value="">Line spacing</option><option>1</option><option>1.15</option><option>1.3</option><option>1.5</option><option>2</option></select>
+ <select data-s="para" title="Paragraph spacing"><option value="">Para spacing</option><option value="0">0 pt</option><option value="3">3 pt</option><option value="6">6 pt</option><option value="10">10 pt</option><option value="14">14 pt</option></select>
+ <button data-c="tight" title="Tight: line 1.0, no gaps">Tight ¶</button><button data-c="removeFormat" title="Clear formatting">Tx</button><span class="sep"></span>
+ <button data-c="tbl" title="Table: insert + properties">▦ Table ▾</button><button data-c="hr" title="Line">―</button><button data-c="pb" title="Page break">⤓ Break</button><button data-c="rs" title="Rupee sign">₹</button><button data-c="date" title="Today's date">📅</button><button data-c="find" title="Find &amp; replace">🔍 Replace</button><span class="sep"></span>
+ <button class="pr" data-c="print">🖨 Print</button><span id="wtmsg"></span>
+</div>
+<div id="wtp" hidden>
+ <div class="wtr"><b>Insert table</b> Rows <input id="wtR" type="number" min="1" max="40" value="3"> Columns <input id="wtC" type="number" min="1" max="12" value="3"> <button data-t="ins">Insert table</button> <span style="margin-left:auto"><button data-t="close">✕ Close</button></span></div>
+ <div class="wtr"><b>Row</b> <button data-t="rowA">+ Above</button><button data-t="rowB">+ Below</button><button data-t="rowD">Delete row</button> Height <input id="wtH" type="number" min="4" max="200" placeholder="mm"> mm <button data-t="rowH">Set</button></div>
+ <div class="wtr"><b>Column</b> <button data-t="colL">+ Left</button><button data-t="colR">+ Right</button><button data-t="colD">Delete column</button> Width <input id="wtW" type="number" min="3" max="100" placeholder="%"> % <button data-t="colW">Set</button><button data-t="eq">Equal widths</button></div>
+ <div class="wtr"><b>Cell</b> <button data-t="mrgR">Merge →</button><button data-t="mrgD">Merge ↓</button><button data-t="split">Split</button> Vertical <select id="wtVA"><option value="top">Top</option><option value="middle">Middle</option><option value="bottom">Bottom</option></select> Padding <input id="wtP" type="number" min="0" max="20" value="1" step="0.5"> mm <button data-t="pad">Set</button></div>
+ <div class="wtr"><b>Borders &amp; fill</b> Apply to <select id="wtScope"><option value="cell">Cell</option><option value="row">Row</option><option value="col">Column</option><option value="table" selected>Whole table</option></select> Border <select id="wtBS"><option value="all">All</option><option value="none">None</option><option value="outer">Outside box</option><option value="top">Top</option><option value="bottom">Bottom</option><option value="left">Left</option><option value="right">Right</option></select> <input id="wtBW" type="number" min="0.5" max="6" step="0.5" value="1"> px <input id="wtBC" type="color" value="#000000"> <button data-t="bord">Apply border</button> Fill <input id="wtFC" type="color" value="#e6ebf2"> <button data-t="fill">Apply fill</button><button data-t="nofill">No fill</button></div>
+ <div class="wtr"><b>Table</b> Width <input id="wtTW" type="number" min="10" max="100" value="100"> % <button data-t="tw">Set</button> Align <select id="wtTA"><option value="left">Left</option><option value="center">Centre</option><option value="right">Right</option></select><button data-t="ta">Set</button><button data-t="hdr">Header row on/off</button><button data-t="tdel">Delete table</button></div>
+</div>
+`;
+function WT_RUN() {
+  var D = document, tb = D.getElementById('wt'), tp = D.getElementById('wtp'), saved = null, mt = null;
+  function $(i) { return D.getElementById(i); }
+  function msg(t) { var m = $('wtmsg'); m.textContent = t; clearTimeout(mt); mt = setTimeout(function () { m.textContent = ''; }, 3500); }
+  function rootOf(n) { while (n && n !== D.body && n.nodeType) { if (n.nodeType === 1 && n.getAttribute('contenteditable') === 'true') return n; n = n.parentNode; } return null; }
+  D.addEventListener('selectionchange', function () { var s = D.getSelection(); if (!s || !s.rangeCount) return; var r = s.getRangeAt(0); if (rootOf(r.commonAncestorContainer)) saved = r.cloneRange(); });
+  function restore() {
+    if (!saved) return false; var root = rootOf(saved.commonAncestorContainer);
+    if (!root || !D.body.contains(root)) return false;
+    root.focus(); var s = D.getSelection(); s.removeAllRanges(); s.addRange(saved); return true;
+  }
+  function after() { try { if (window.fitAll) fitAll(); } catch (e) { } try { if (window.fitDocs) fitDocs(); } catch (e) { } try { if (window.fitSlips) fitSlips(); } catch (e) { } }
+  function ok() { if (restore()) return true; msg('Click inside the text you want to edit first'); return false; }
+  function ex(c, v) { if (!ok()) return false; D.execCommand('styleWithCSS', false, true); D.execCommand(c, false, v == null ? null : v); after(); return true; }
+  function setSize(pt) {
+    if (!ok()) return; D.execCommand('styleWithCSS', false, false); D.execCommand('fontSize', false, '7'); D.execCommand('styleWithCSS', false, true);
+    [].forEach.call(D.querySelectorAll('font[size="7"]'), function (f) { f.removeAttribute('size'); f.style.fontSize = pt + 'pt'; }); after();
+  }
+  function curPt() { var n = saved && saved.startContainer; if (n && n.nodeType === 3) n = n.parentNode; return n ? Math.round(parseFloat(getComputedStyle(n).fontSize) * 0.75 * 2) / 2 : 11; }
+  var BS = 'p,div,li,td,th,h1,h2,h3,h4,h5,h6,blockquote';
+  function blocks() {
+    if (!ok()) return []; var r = saved, root = rootOf(r.commonAncestorContainer), out = [];
+    [].forEach.call(root.querySelectorAll(BS), function (e) { if (r.intersectsNode(e) && !e.querySelector(BS)) out.push(e); });
+    if (!out.length) { var n = r.startContainer; if (n.nodeType === 3) n = n.parentNode; while (n && n !== root && !n.matches(BS)) n = n.parentNode; out.push(n || root); }
+    return out;
+  }
+  function cell() { if (!ok()) return null; var n = saved.startContainer; if (n.nodeType === 3) n = n.parentNode; var c = n.closest ? n.closest('td,th') : null; if (!c) msg('Place the cursor inside a table cell'); return c; }
+  function scoped(c) {
+    var t = c.closest('table'), sc = $('wtScope').value, rows = [].slice.call(t.rows);
+    if (sc === 'table') return [].slice.call(t.querySelectorAll('td,th'));
+    if (sc === 'row') return [].slice.call(c.parentNode.cells);
+    if (sc === 'col') { var i = c.cellIndex; return rows.map(function (r) { return r.cells[i]; }).filter(Boolean); }
+    return [c];
+  }
+  function newCell(x) { var d = D.createElement('td'); d.style.cssText = x.style.cssText; d.colSpan = x.colSpan || 1; d.innerHTML = '<br>'; return d; }
+  function tableOp(t) {
+    if (t === 'close') { tp.hidden = true; return; }
+    if (t === 'ins') {
+      var R = Math.max(1, +$('wtR').value || 3), C = Math.max(1, +$('wtC').value || 3), h = '<table class="wt-t" style="width:100%;border-collapse:collapse;table-layout:fixed">';
+      for (var i = 0; i < R; i++) { h += '<tr>'; for (var j = 0; j < C; j++) h += '<td style="border:1px solid #000;padding:3px 5px;vertical-align:top"><br></td>'; h += '</tr>'; }
+      ex('insertHTML', h + '</table><p><br></p>'); return;
+    }
+    var c = cell(); if (!c) return; var tr = c.parentNode, tbl = c.closest('table');
+    if (t === 'rowA' || t === 'rowB') { var n = tr.cloneNode(false); n.removeAttribute('id'); [].forEach.call(tr.cells, function (x) { n.appendChild(newCell(x)); }); tr.parentNode.insertBefore(n, t === 'rowB' ? tr.nextSibling : tr); }
+    else if (t === 'rowD') { if (tbl.rows.length < 2) tbl.remove(); else tr.remove(); }
+    else if (t === 'rowH') { var hh = +$('wtH').value; if (hh) tr.style.height = hh + 'mm'; }
+    else if (t === 'colL' || t === 'colR') { var ix = c.cellIndex + (t === 'colR' ? 1 : 0); [].forEach.call(tbl.rows, function (r) { var ref = r.cells[ix], nc = newCell(r.cells[Math.min(c.cellIndex, r.cells.length - 1)] || c); nc.colSpan = 1; r.insertBefore(nc, ref || null); }); }
+    else if (t === 'colD') { var ci = c.cellIndex; if (tr.cells.length < 2) tbl.remove(); else [].forEach.call(tbl.rows, function (r) { if (r.cells[ci]) r.cells[ci].remove(); }); }
+    else if (t === 'colW') { var w = +$('wtW').value; if (w) { var i2 = c.cellIndex; [].forEach.call(tbl.rows, function (r) { if (r.cells[i2]) r.cells[i2].style.width = w + '%'; }); } }
+    else if (t === 'eq') { var n2 = tbl.rows[0].cells.length; [].forEach.call(tbl.rows, function (r) { [].forEach.call(r.cells, function (x) { x.style.width = (100 / n2).toFixed(2) + '%'; }); }); }
+    else if (t === 'mrgR') { var nx = c.nextElementSibling; if (!nx) { msg('No cell on the right'); return; } c.colSpan = (c.colSpan || 1) + (nx.colSpan || 1); if (nx.textContent.trim()) c.innerHTML += '<br>' + nx.innerHTML; nx.remove(); }
+    else if (t === 'mrgD') { var r2 = tr.nextElementSibling, c2 = r2 && r2.cells[c.cellIndex]; if (!c2) { msg('No cell below'); return; } c.rowSpan = (c.rowSpan || 1) + (c2.rowSpan || 1); if (c2.textContent.trim()) c.innerHTML += '<br>' + c2.innerHTML; c2.remove(); }
+    else if (t === 'split') { if ((c.colSpan || 1) > 1) { c.colSpan -= 1; var s2 = newCell(c); s2.colSpan = 1; c.parentNode.insertBefore(s2, c.nextSibling); } else msg('This cell is not merged'); }
+    else if (t === 'pad') { var p = +$('wtP').value; scoped(c).forEach(function (x) { x.style.padding = p + 'mm'; }); }
+    else if (t === 'bord') {
+      var bw = ($('wtBW').value || 1) + 'px', bc = $('wtBC').value, ty = $('wtBS').value, line = bw + ' solid ' + bc;
+      if (ty === 'outer') { var rows = [].slice.call(tbl.rows); rows.forEach(function (r, ri) { [].forEach.call(r.cells, function (x, xi) { if (ri === 0) x.style.borderTop = line; if (ri === rows.length - 1) x.style.borderBottom = line; if (xi === 0) x.style.borderLeft = line; if (xi === r.cells.length - 1) x.style.borderRight = line; }); }); }
+      else scoped(c).forEach(function (x) { if (ty === 'all') x.style.border = line; else if (ty === 'none') x.style.border = 'none'; else if (ty === 'top') x.style.borderTop = line; else if (ty === 'bottom') x.style.borderBottom = line; else if (ty === 'left') x.style.borderLeft = line; else if (ty === 'right') x.style.borderRight = line; });
+    }
+    else if (t === 'fill') { var fc = $('wtFC').value; scoped(c).forEach(function (x) { x.style.background = fc; }); }
+    else if (t === 'nofill') { scoped(c).forEach(function (x) { x.style.background = ''; }); }
+    else if (t === 'tw') { tbl.style.width = ($('wtTW').value || 100) + '%'; }
+    else if (t === 'ta') { var a = $('wtTA').value; tbl.style.marginLeft = a === 'left' ? '0' : 'auto'; tbl.style.marginRight = a === 'right' ? '0' : 'auto'; if (a === 'left') tbl.style.marginRight = 'auto'; }
+    else if (t === 'hdr') { var fr = tbl.rows[0], on = fr.getAttribute('data-h') !== '1'; [].forEach.call(fr.cells, function (x) { x.style.background = on ? '#e6ebf2' : ''; x.style.fontWeight = on ? '700' : ''; }); on ? fr.setAttribute('data-h', '1') : fr.removeAttribute('data-h'); }
+    else if (t === 'tdel') { tbl.remove(); }
+    after();
+  }
+  $('wtVA').addEventListener('change', function () { var c = cell(); if (c) scoped(c).forEach(function (x) { x.style.verticalAlign = $('wtVA').value; }); });
+  function setBlocks(fn) { blocks().forEach(fn); after(); }
+  function today() { var d = new Date(); return ('0' + d.getDate()).slice(-2) + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + d.getFullYear(); }
+  function findRep() {
+    var f = prompt('Find what?'); if (!f) return; var r = prompt('Replace with (leave empty to just count):', ''); var n = 0;
+    [].forEach.call(D.querySelectorAll('[contenteditable="true"]'), function (root) {
+      var w = D.createTreeWalker(root, NodeFilter.SHOW_TEXT), ns = [], x; while ((x = w.nextNode())) ns.push(x);
+      ns.forEach(function (t) { var p = t.nodeValue.split(f); if (p.length > 1) { n += p.length - 1; if (r !== null && r !== '') t.nodeValue = p.join(r); } });
+    });
+    msg(n + ' match(es)' + (r ? ' replaced' : '')); after();
+  }
+  tb.addEventListener('mousedown', function (e) { if (e.target.tagName === 'BUTTON') e.preventDefault(); });
+  tp.addEventListener('mousedown', function (e) { if (e.target.tagName === 'BUTTON') e.preventDefault(); });
+  tp.addEventListener('click', function (e) { var t = e.target.getAttribute && e.target.getAttribute('data-t'); if (t) tableOp(t); });
+  tb.addEventListener('click', function (e) {
+    var b = e.target.closest ? e.target.closest('button') : null; if (!b) return; var c = b.getAttribute('data-c'); if (!c) return;
+    if (c === 'print') { after(); window.print(); }
+    else if (c === 'undo' || c === 'redo') { restore(); D.execCommand(c); after(); }
+    else if (c === 'a+' || c === 'a-') { if (ok()) setSize(Math.max(5, curPt() + (c === 'a+' ? 1 : -1))); }
+    else if (c === 'case') { if (!ok()) return; var t = D.getSelection().toString(); if (!t) { msg('Select some text first'); return; } var u = t.toUpperCase(), l = t.toLowerCase(); ex('insertText', t === u ? l : (t === l ? l.replace(/\b\w/g, function (m) { return m.toUpperCase(); }) : u)); }
+    else if (c === 'first') { setBlocks(function (e2) { e2.style.textIndent = e2.style.textIndent ? '' : '10mm'; }); }
+    else if (c === 'tight') { setBlocks(function (e2) { e2.style.lineHeight = '1'; e2.style.marginTop = '0'; e2.style.marginBottom = '0'; }); }
+    else if (c === 'tbl') { tp.hidden = !tp.hidden; }
+    else if (c === 'hr') { ex('insertHorizontalRule'); }
+    else if (c === 'pb') { ex('insertHTML', '<div class="wt-pb" style="break-after:page;page-break-after:always;border-top:1px dashed #888;height:0"></div><p><br></p>'); }
+    else if (c === 'rs') { ex('insertText', '\u20B9'); }
+    else if (c === 'date') { ex('insertText', today()); }
+    else if (c === 'find') { findRep(); }
+    else { ex(c); }
+  });
+  tb.addEventListener('change', function (e) {
+    var s = e.target.getAttribute && e.target.getAttribute('data-s'); if (!s) return; var v = e.target.value; if (!v) return;
+    if (s === 'fontName') ex('fontName', v);
+    else if (s === 'size') setSize(v);
+    else if (s === 'line') setBlocks(function (x) { x.style.lineHeight = v; });
+    else if (s === 'para') setBlocks(function (x) { x.style.marginTop = '0'; x.style.marginBottom = v + 'pt'; });
+    e.target.selectedIndex = 0;
+  });
+  tb.addEventListener('input', function (e) { var k = e.target.getAttribute && e.target.getAttribute('data-k'); if (!k) return; if (k === 'hiliteColor') { if (!ex('hiliteColor', e.target.value)) return; } else ex(k, e.target.value); });
+}
+const WT_INJECT = () => '<style>' + WT_CSS + '</style>' + WT_HTML + '<script>(' + WT_RUN.toString() + ')();<\/script>';
+
     const purposeHistory = [
         "ADMINISTRATIVE HONORIUM: Prabir Kumar Dangar, Project Co-ordinator-650 | Subhendu Karmakar, Off Staff (Internal)-325 | Prakash Sardar, Off Staff (Internal)-Lab Attendant-325 | Tapan Kumar Diyasi, Gr.D Staff (Internal)-260 | Niranjan Murmu, Gr.D Staff (Internal)-260 | Ram Prasad Layek, Part Time Night Watchman-3000",
         "Aqua Guard Servicing & Repair",
@@ -524,7 +684,7 @@ details.more{margin-top:6px}details.more summary{cursor:pointer;color:var(--blue
         const pe = (x) => String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
         const fmt = (n) => (Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         const subTitle = v.subTitle || 'SSA/ RMSA, BANKURA';
-        const remHtml = v.remarks ? '<div class="receipt-row" style="margin-top: 2px;"><span class="inline-label">Remarks :</span><span class="inline-fill rem-text" style="flex-grow: 1;">' + v.remarks + '</span></div>' : '';
+        const remHtml = v.remarks ? '<div class="receipt-row" style="margin-top: 2px;"><span class="inline-label">Remarks :</span><span class="inline-fill rem-text" contenteditable="true" spellcheck="false" style="flex-grow: 1;">' + v.remarks + '</span></div>' : '';
         const sigL = v.sigLeft || 'Headmaster';
         const sigR = v.sigRight || 'Administrator';
         const paySum = multi ? v.payees.reduce((t, x) => t + (parseFloat(x.amount) || 0), 0) : 0;
@@ -577,7 +737,7 @@ details.more{margin-top:6px}details.more summary{cursor:pointer;color:var(--blue
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Payment (Debit Voucher)</title>
 <style>
-${multi ? '@page { size: A4; margin: 0; }' : ''}
+@page { size: A4; margin: 0; }
 * { box-sizing: border-box; font-family: 'Lucida Bright', 'Lucida Fax', Lucida, Georgia, serif; }
 body { background-color: #f4f6f9; margin: 0; padding: 10px; }
 .voucher-container {
@@ -667,15 +827,21 @@ body.multi .form-table { margin-bottom: 10px; }
 body.multi .form-table td { padding: 6px 10px; font-size: 15px; }
 body.multi .signature-auth-row { margin-top: 12px; margin-bottom: 6px; }
 body.multi .receipt-section { padding-top: 12px; }
+div.purpose-textarea { width: 100%; border-bottom: 1px dashed #000; padding: 4px 6px; font-weight: bold; background: #fcfdfe; outline: none; white-space: pre-wrap; overflow-wrap: anywhere; word-break: normal; }
+.purpose-textarea p { margin: 0; }
+.rem-text { outline: none; white-space: pre-wrap; overflow-wrap: anywhere; }
+.purpose-textarea table, .rem-text table { border-collapse: collapse; width: 100%; font-size: inherit; }
+.purpose-textarea td, .purpose-textarea th { border: 1px solid #000; padding: 2px 5px; font-weight: bold; }
 @media print {
     body { background: none; padding: 0; margin: 0; }
-    .voucher-container { border: 2px solid #000; width: 210mm; height: 297mm; box-shadow: none; padding: 40px 45px; margin: 0; page-break-inside: avoid; }
+    .voucher-container { border: 2px solid #000; width: 210mm; height: 296mm; box-shadow: none; padding: 40px 45px; margin: 0; page-break-inside: avoid; }
     .voucher-container::before { border: 1px solid #000; }
     body[data-school-mode="MANUAL"] #schoolNameSelect { display: none !important; }
     body[data-head-mode="MANUAL"] #headAccount { display: none !important; }
-    select, input[type="text"], input[type="number"], input[type="date"], textarea, .inline-fill {
+    select, input[type="text"], input[type="number"], input[type="date"], textarea, .inline-fill, div.purpose-textarea {
         background-color: transparent !important; border-bottom: none !important; padding: 2px 0 !important;
     }
+    .purpose-textarea td, .purpose-textarea th { padding: 2px 5px !important; }
     select { appearance: none; -webkit-appearance: none; }
     .form-table td, .right-info-table td, .payee-table th { background-color: transparent !important; border: 1px solid #000 !important; }
     .payee-table td { border: 1px solid #000 !important; }
@@ -687,6 +853,7 @@ body.multi .receipt-section { padding-top: 12px; }
 </style>
 </head>
 <body class="${multi ? 'multi' : ''}" data-school-mode="DEFAULT" data-head-mode="DEFAULT">
+${WT_INJECT()}
 
 <div class="no-print">
     <button class="print-btn" id="triggerPrintBtn">Print Voucher Sheet</button>
@@ -766,7 +933,7 @@ body.multi .receipt-section { padding-top: 12px; }
             <tr><td>To Whom Paid</td><td><input type="text" id="toWhomPaid" value="${v.toWhomPaid}"></td></tr>
             <tr>
                 <td>Purpose of Payment</td>
-                <td><textarea class="purpose-textarea" id="purpose" rows="2" oninput="autoGrow(this)">${v.purpose}</textarea></td>
+                <td><div class="purpose-textarea" id="purpose" contenteditable="true" spellcheck="false">${v.purpose}</div></td>
             </tr>
             <tr>
                 <td>Amount of Cash/Cheque Rs.</td>
@@ -792,11 +959,11 @@ body.multi .receipt-section { padding-top: 12px; }
     document.getElementById('triggerPrintBtn').addEventListener('click', function() { window.print(); });
 
     function autoGrow(element) {
+        if (!element || element.tagName !== 'TEXTAREA') return;
         element.style.height = "auto";
         element.style.height = (element.scrollHeight) + "px";
     }
     window.addEventListener('load', function() {
-        autoGrow(document.getElementById('purpose'));
         var hv = ${JSON.stringify(v.headAccount || '')};
         if (hv) document.getElementById('headAccount').value = hv;
     });
@@ -886,13 +1053,22 @@ body.multi .receipt-section { padding-top: 12px; }
         while (tooBig() && s > 6.5 && g++ < 80) { s -= 0.5; el.style.fontSize = s + 'px'; }
     }
     function fitAll() {
-        var c = document.querySelector('.voucher-container');
-        if (document.querySelector('.payee-table')) {
-            var h = 30, f = 14, g = 0; setRowStyle(h, f);
-            while (c && c.scrollHeight > c.clientHeight + 1 && h > 15 && g++ < 20) { h -= 2; if (f > 10) f -= 0.5; setRowStyle(h, f); }
-        }
+        var c = document.querySelector('.voucher-container'); if (!c) return;
+        var over = function() { return c.scrollHeight > c.clientHeight + 1; };
+        var pt = !!document.querySelector('.payee-table'), h = 30, f = 14, g = 0;
+        if (pt) { setRowStyle(h, f); while (over() && h > 22 && g++ < 20) { h -= 2; if (f > 11) f -= 0.5; setRowStyle(h, f); } }
+        /* long / edited Purpose and Remarks: shrink their text until the whole voucher fits one A4 page */
+        var bx = [].slice.call(document.querySelectorAll('.purpose-textarea,.rem-text'));
+        bx.forEach(function(e) { if (!e.getAttribute('data-b')) e.setAttribute('data-b', parseFloat(getComputedStyle(e).fontSize) || 14); e.style.fontSize = ''; });
+        var k = 1; g = 0;
+        var pu = document.getElementById('purpose'), rm = bx.filter(function(e) { return e !== pu; });
+        function sz(e, kk) { e.style.fontSize = (parseFloat(e.getAttribute('data-b')) * kk).toFixed(2) + 'px'; }
+        while (over() && k > 0.6 && g++ < 30) { k -= 0.025; if (pu) sz(pu, k); }
+        var k2 = 1; g = 0;
+        while (over() && k2 > 0.7 && g++ < 12) { k2 -= 0.025; rm.forEach(function(e) { sz(e, k2); }); }
+        if (pt) { g = 0; while (over() && h > 15 && g++ < 20) { h -= 2; if (f > 10) f -= 0.5; setRowStyle(h, f); } }
         document.querySelectorAll('.payee-table input, .payee-table textarea, #toWhomPaid, #chequeDetails').forEach(function(el) { el.style.fontSize = ''; fitEl(el); });
-        var pt = document.getElementById('payTotal'); if (pt) { pt.style.fontSize = ''; fitEl(pt); }
+        var pt2 = document.getElementById('payTotal'); if (pt2) { pt2.style.fontSize = ''; fitEl(pt2); }
     }
     function checkSum() {
         var n = document.getElementById('payDiff'); if (!n) return;
@@ -901,8 +1077,10 @@ body.multi .receipt-section { padding-top: 12px; }
         var d = Math.round((chq - t) * 100) / 100;
         n.textContent = (chq && Math.abs(d) > 0.005) ? ('Payee total differs from cheque amount Rs. ' + chq + ' by Rs. ' + d + ' (not printed)') : '';
     }
+    var fitT = null;
     document.addEventListener('input', function(e) {
         var t = e.target;
+        if (t.closest && t.closest('.purpose-textarea,.rem-text')) { clearTimeout(fitT); fitT = setTimeout(fitAll, 150); }
         if (t.matches && t.matches('.payee-table input, .payee-table textarea, #toWhomPaid, #chequeDetails')) { t.style.fontSize = ''; fitEl(t); }
         if (t.classList && t.classList.contains('pm')) { var pt = document.getElementById('payTotal'); if (pt) { pt.style.fontSize = ''; fitEl(pt); } }
     });
@@ -910,6 +1088,7 @@ body.multi .receipt-section { padding-top: 12px; }
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitAll);
     window.addEventListener('beforeprint', fitAll);
     window.addEventListener('afterprint', fitAll);
+    window.addEventListener('resize', fitAll);
 <\/script>
 </body>
 </html>`;
@@ -997,6 +1176,7 @@ body.multi .receipt-section { padding-top: 12px; }
 </style>
 </head>
 <body>
+${WT_INJECT()}
 <div class="no-print"><button class="print-btn" id="printBtn">Print Letter</button></div>
 <div class="page">
     <div class="top-contact">
@@ -1312,49 +1492,50 @@ function printRegister(){const rows=visibleRows().sort((a,b)=>(Number(a.sl)||0)-
 
 /* ================= document builders (A4 portrait, Arial, min 10pt) ================= */
 const DOC_CSS=`@page{size:A4 portrait;margin:12mm 12mm 12mm 18mm}*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-body{margin:0;background:#DDE3EC;font-family:Arial,'Lucida Bright',sans-serif;font-size:10.5pt;line-height:1.35;color:#000}
-.bar{position:fixed;top:10px;right:14px;background:#0B2545;color:#fff;padding:8px 12px;border-radius:8px;font-size:10pt;z-index:9}
+body{margin:0;background:#DDE3EC;font-family:Arial,'Lucida Bright',sans-serif;font-size:calc(10.5pt*var(--k,1));line-height:1.35;color:#000}
+.bar{position:fixed;top:10px;right:14px;background:#0B2545;color:#fff;padding:8px 12px;border-radius:8px;font-size:calc(10pt*var(--k,1));z-index:9}
 .bar button{font:inherit;font-weight:700;padding:6px 14px;border:0;border-radius:6px;background:#EEB902;cursor:pointer;margin-right:8px}
 .sheet{width:210mm;margin:12px auto;background:#fff;padding:12mm 12mm 12mm 18mm;outline:none;box-shadow:0 2px 14px rgba(0,0,0,.18)}
 .doc{break-after:page}.doc:last-child{break-after:auto}
-.lh{text-align:center;border-bottom:3px double #000;padding-bottom:4px;margin-bottom:8px}.lh b{display:block;font-size:17pt;letter-spacing:.8px;color:#0B2545}.lh span{display:block;font-size:10pt}
-h2.dt{text-align:center;font-size:12.5pt;letter-spacing:.6px;margin:8px 0;padding:4px 0;border-top:1.5px solid #000;border-bottom:1.5px solid #000;background:#EEF2F7}
-h3{font-size:10.5pt;margin:8px 0 3px;text-transform:uppercase;letter-spacing:.4px;color:#0B2545;border-bottom:1px solid #888}
-.meta{border:1px solid #000;padding:3px 8px;margin-bottom:6px;font-size:10.5pt}.meta div{display:flex;justify-content:space-between;gap:12px;white-space:nowrap;padding:1px 0}
-p{margin:4px 0}.j{text-align:justify}.pts p{margin:1px 0}.pts .pt{margin-top:5px}.pts .sp{padding-left:22px;text-align:justify}
-table{width:100%;border-collapse:collapse;table-layout:fixed;margin:6px 0;font-size:10pt}
+.lh{text-align:center;border-bottom:3px double #000;padding-bottom:4px;margin-bottom:8px}.lh b{display:block;font-size:calc(17pt*var(--k,1));letter-spacing:.8px;color:#0B2545}.lh span{display:block;font-size:calc(10pt*var(--k,1))}
+h2.dt{text-align:center;font-size:calc(12.5pt*var(--k,1));letter-spacing:.6px;margin:8px 0;padding:4px 0;border-top:1.5px solid #000;border-bottom:1.5px solid #000;background:#EEF2F7}
+h3{font-size:calc(10.5pt*var(--k,1));margin:8px 0 3px;text-transform:uppercase;letter-spacing:.4px;color:#0B2545;border-bottom:1px solid #888}
+.meta{border:1px solid #000;padding:3px 8px;margin-bottom:6px;font-size:calc(10.5pt*var(--k,1))}.meta div{display:flex;justify-content:space-between;gap:12px;white-space:nowrap;padding:1px 0}
+p{margin:4px 0}.doc{font-size:calc(10.5pt*var(--k,1))}.pts .rs{margin:3px 0;text-align:justify}.j{text-align:justify}.pts p{margin:1px 0}.pts .pt{margin-top:5px}.pts .sp{padding-left:22px;text-align:justify}
+table{width:100%;border-collapse:collapse;table-layout:fixed;margin:6px 0;font-size:calc(10pt*var(--k,1))}
 th,td{border:1px solid #000;padding:3px 5px;vertical-align:top;word-wrap:break-word}th{background:#E6EBF2;text-align:center}
 table.mem td{padding:7px 5px;white-space:nowrap;overflow:hidden}
 thead{display:table-header-group}tr{break-inside:avoid}.r{text-align:right;white-space:nowrap}.c{text-align:center}
-.sign{display:flex;justify-content:space-between;margin-top:26px;font-weight:700;font-size:10.5pt}.sign div{text-align:center;min-width:46mm}
-.words{border:1px solid #000;padding:4px 8px;font-weight:700;font-size:10.5pt;background:#F6F8FB}
-.slip{border:2px solid #000;padding:5mm 7mm;margin-bottom:7mm;break-inside:avoid;font-size:10.5pt;line-height:1.4}
+.sign{display:flex;justify-content:space-between;margin-top:26px;font-weight:700;font-size:calc(10.5pt*var(--k,1))}.sign div{text-align:center;min-width:46mm}
+.words{border:1px solid #000;padding:4px 8px;font-weight:700;font-size:calc(10.5pt*var(--k,1));background:#F6F8FB}
+.slip{border:2px solid #000;padding:5mm 7mm;margin-bottom:7mm;break-inside:avoid;font-size:calc(10.5pt*var(--k,1));line-height:1.4}
 .bn{display:inline-block;border:2px solid #000;border-radius:50%/100%;padding:2px 28px;font-weight:700;letter-spacing:2px}
-.cp{border-top:1px dashed #000;margin-top:8px;padding-top:6px;font-size:10pt}.slip p{margin:3px 0}
-.two{display:flex;flex-direction:column;gap:5mm;height:272mm}.two .slip{flex:1 1 0;min-height:0;margin:0;padding:4mm 6mm;font-size:10pt;line-height:1.3;overflow:hidden;display:flex;flex-direction:column}.two .slip .cp{margin-top:auto}.two .slip p{margin:2px 0}.two .slip table th,.two .slip table td{padding:2px 5px}
+.cp{border-top:1px dashed #000;margin-top:8px;padding-top:6px;font-size:calc(10pt*var(--k,1))}.slip p{margin:3px 0}
+.two{display:flex;flex-direction:column;gap:5mm;height:272mm}.two .slip{flex:1 1 0;min-height:0;margin:0;padding:4mm 6mm;font-size:calc(10pt*var(--k,1));line-height:1.3;overflow:hidden;display:flex;flex-direction:column}.two .slip .cp{margin-top:auto}.two .slip p{margin:2px 0}.two .slip table th,.two .slip table td{padding:2px 5px}
 .full{min-height:252mm;display:flex;flex-direction:column}.foot{margin-top:auto;display:flex;gap:8mm;align-items:flex-end}.foot table{flex:1}
-.seal{width:40mm;height:40mm;border:1.5px dashed #000;border-radius:50%;display:grid;place-items:center;font-size:10pt;color:#444;flex:none;margin-bottom:6px}
+.seal{width:40mm;height:40mm;border:1.5px dashed #000;border-radius:50%;display:grid;place-items:center;font-size:calc(10pt*var(--k,1));color:#444;flex:none;margin-bottom:6px}
 @media print{body{background:#fff}.bar{display:none}.sheet{width:auto;margin:0;padding:0;box-shadow:none}}`;
 function openDoc(title,inner){const w=window.open('','_blank');if(!w){alert('Please allow pop-ups to view / print.');return}
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title}</title><style>${DOC_CSS}</style></head><body><div class="bar"><button onclick="print()">🖨 Print</button>Click any text to edit before printing</div><div class="sheet" contenteditable="true" spellcheck="false">${inner}</div><script>function fitSlips(){document.querySelectorAll('.two .slip').forEach(function(e){var f=10;e.style.fontSize=f+'pt';while(e.scrollHeight>e.clientHeight+1&&f>6.5){f-=0.25;e.style.fontSize=f+'pt'}})}window.addEventListener('load',fitSlips);window.addEventListener('beforeprint',fitSlips);<\/script></body></html>`);w.document.close()}
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title}</title><style>${DOC_CSS}</style></head><body>${WT_INJECT()}<div class="bar"><button onclick="print()">🖨 Print</button>Click any text to edit before printing</div><div class="sheet" contenteditable="true" spellcheck="false">${inner}</div><script>function fitDocs(){var lim=273*96/25.4;document.querySelectorAll('.doc:not(.two)').forEach(function(e){var k=1,g=0;e.style.setProperty('--k',1);while(e.scrollHeight>lim&&k>0.55&&g++<40){k=Math.round((k-0.025)*1000)/1000;e.style.setProperty('--k',k)}})}window.addEventListener('load',fitDocs);window.addEventListener('beforeprint',fitDocs);var _ft;document.addEventListener('input',function(){clearTimeout(_ft);_ft=setTimeout(fitDocs,200)});function fitSlips(){document.querySelectorAll('.two .slip').forEach(function(e){var f=10;e.style.fontSize=f+'pt';while(e.scrollHeight>e.clientHeight+1&&f>6.5){f-=0.25;e.style.fontSize=f+'pt'}})}window.addEventListener('load',fitSlips);window.addEventListener('beforeprint',fitSlips);<\/script></body></html>`);w.document.close()}
 const lh=()=>`<div class="lh"><b>${SCHOOL}</b><span>P.O. &amp; Block: Taldangra · Dist.: Bankura · PIN 722152</span></div>`;
 const sign=(a,b)=>`<div class="sign"><div>Prepared By<br><br>______________</div><div>${a}<br>${b}</div></div>`;
 const meta=(a,b)=>`<div class="meta"><div>${a.map(x=>`<span>${x}</span>`).join('')}</div><div>${b.map(x=>`<span>${x}</span>`).join('')}</div></div>`;
-function details(rows){let h='<div class="pts">';rows.forEach((r,i)=>{const n=i+1;
-  h+=`<p class="pt"><b>${n}.</b> <b>${esc(fundName(r.acc))} Fund</b> — A/C No. ${esc(acNo(r.acc))}</p>
-<p class="sp"><b>${n}a.</b> Payee: <b>${esc(r.to)}</b></p>
-<p class="sp"><b>${n}b.</b> Purpose: ${esc(r.purpose)}</p>
-<p class="sp"><b>${n}c.</b> Cheque No. <b>${esc(r.chNo)}</b> dated <b>${fd(r.dated)}</b> &nbsp;·&nbsp; <b>${n}d.</b> Amount: <b>₹ ${money(r.amount)}</b> (${esc(numToWords(Math.floor(Number(r.amount)||0)))})</p>`});return h+'</div>'}
+function shortPur(r){let p=String(r.purpose||'').replace(/\s+/g,' ').trim().replace(/^payment\s+(towards|for|of)\s+/i,'');
+  const m=p.match(/^(.*?)(?:,\s*(?:total|net)\b|[,;]?\s*payee-?wise\b)/i);if(m&&m[1]){p=m[1].trim()+' (details as per voucher)'}
+  p=p.replace(/[.\s]+$/,'');if(p.length>140)p=p.slice(0,137).replace(/\s+\S*$/,'')+'…';return p}
+function details(rows){let h='<div class="pts">';rows.forEach((r,i)=>{const a=Number(r.amount)||0;
+  h+=`<p class="rs"><b>${i+1}.</b> Resolved that <b>₹ ${money(a)}</b> (${esc(numToWords(Math.floor(a)))}) be paid to <b>${esc(r.to)}</b> by Cheque No. <b>${esc(r.chNo)}</b> dated <b>${fd(r.dated)}</b>, debited to the <b>${esc(fundName(r.acc))} Fund</b> (A/C No. ${esc(acNo(r.acc))}), towards ${esc(shortPur(r))}.</p>`});return h+'</div>'}
+function totLine(rows){const g=rows.reduce((t,r)=>t+(Number(r.amount)||0),0);return `<p class="words">Total of ${rows.length} cheque${rows.length>1?'s':''}: ₹ ${money(g)} (${esc(numToWords(Math.floor(g)))})</p>`}
 function tbl(rows){const funds=[...new Set(rows.map(r=>fundName(r.acc)))];let g=0,b='';
-  rows.forEach((r,i)=>{const a=Number(r.amount)||0;g+=a;b+=`<tr><td class="c">${i+1}</td><td class="c">${i+1}a–${i+1}d</td><td><b>${esc(fundName(r.acc))}</b><br>A/C ${esc(acNo(r.acc))}</td><td>${esc(r.to)}</td><td>${esc(r.chNo)}<br>dt. ${fd(r.dated)}</td><td class="r"><b>${money(a)}</b></td></tr>`});
-  if(funds.length>1)funds.forEach(f=>{const s=rows.filter(r=>fundName(r.acc)===f).reduce((t,r)=>t+(Number(r.amount)||0),0);b+=`<tr><td colspan="5" class="r">Sub-total — ${esc(f)}</td><td class="r">${money(s)}</td></tr>`});
-  b+=`<tr><td colspan="5" class="r"><b>GRAND TOTAL</b></td><td class="r"><b>${money(g)}</b></td></tr>`;
-  return `<table><colgroup><col style="width:6%"><col style="width:10%"><col style="width:22%"><col style="width:26%"><col style="width:18%"><col style="width:18%"></colgroup><thead><tr><th>Sl</th><th>Ref. Pt.</th><th>Fund Head / A/C No.</th><th>Payee</th><th>Cheque No. &amp; Date</th><th>Amount (₹)</th></tr></thead><tbody>${b}</tbody></table><div class="words">Total in words: ${esc(numToWords(Math.floor(g)))}</div>`}
+  rows.forEach((r,i)=>{const a=Number(r.amount)||0;g+=a;b+=`<tr><td class="c">${i+1}</td><td><b>${esc(fundName(r.acc))}</b><br>A/C ${esc(acNo(r.acc))}</td><td>${esc(r.to)}</td><td>${esc(r.chNo)}<br>dt. ${fd(r.dated)}</td><td class="r"><b>${money(a)}</b></td></tr>`});
+  if(funds.length>1)funds.forEach(f=>{const s=rows.filter(r=>fundName(r.acc)===f).reduce((t,r)=>t+(Number(r.amount)||0),0);b+=`<tr><td colspan="4" class="r">Sub-total — ${esc(f)}</td><td class="r">${money(s)}</td></tr>`});
+  b+=`<tr><td colspan="4" class="r"><b>GRAND TOTAL</b></td><td class="r"><b>${money(g)}</b></td></tr>`;
+  return `<table><colgroup><col style="width:6%"><col style="width:26%"><col style="width:30%"><col style="width:20%"><col style="width:18%"></colgroup><thead><tr><th>Sl</th><th>Fund Head / A/C No.</th><th>Payee</th><th>Cheque No. &amp; Date</th><th>Amount (₹)</th></tr></thead><tbody>${b}</tbody></table><div class="words">Total in words: ${esc(numToWords(Math.floor(g)))}</div>`}
 function remNote(rows){const m=new Map();rows.forEach(r=>{const t=String(r.remarks||'').trim().replace(/[.\s]+$/,'');if(!t)return;const f=fundName(r.acc);if(!m.has(f))m.set(f,[]);if(!m.get(f).includes(t))m.get(f).push(t)});
   return [...m].map(([f,a])=>a.length===1?`<p class="j"><b>${esc(f)} Fund:</b> It may also be mentioned that ${esc(a[0])}.</p>`
     :`<p class="j"><b>${esc(f)} Fund:</b> It may also be mentioned that —</p>`+a.map((t,i)=>`<p class="j" style="margin:2px 0 2px 22px">(${i+1}) ${esc(t)}.</p>`).join('')).join('')}
 const memTbl=(h)=>`<table class="mem"><colgroup><col style="width:6%"><col style="width:34%"><col style="width:32%"><col style="width:28%"></colgroup><thead><tr><th>Sl</th><th>Name</th><th>Desig.</th><th>${h}</th></tr></thead><tbody>${MEMBERS.map((m,i)=>`<tr><td class="c">${i+1}</td><td><b>${m[0]}</b></td><td>${m[1]}</td><td></td></tr>`).join('')}</tbody></table>`;
-const MDM_NOTE='In respect of the Mid-Day Meal (MDM) fund, the Finance Sub-Committee, after checking the bills and vouchers, resolved to sanction the expenditure and to issue the cheque(s) directly at this meeting, as per the details above. These MDM payments need not be forwarded to the Head of Institution (HOI) or the Administrator for any separate report or order.';
+const MDM_NOTE='The Committee further resolved to sanction the above MDM expenditure and issue the cheque(s) directly at this meeting; no separate HOI report or Administrator order is required for MDM payments.';
 
 function dNotice(rows){const funds=[...new Set(rows.map(r=>fundName(r.acc)))].join(', ');
   return `<section class="doc">${lh()}<h2 class="dt">NOTICE — FINANCE SUB-COMMITTEE MEETING CALL</h2>
@@ -1368,8 +1549,8 @@ function dRes(rows){const m=rows.map((r,i)=>isMDM(r)?i+1:0).filter(Boolean);
   return `<section class="doc">${lh()}<h2 class="dt">RESOLUTIONS ADOPTED — FINANCE SUB-COMMITTEE</h2>
 ${meta([`Meeting No.: <b>${ref('fin')}</b>`,`Held on: <b>${fd(refs.finDate)}</b>`],[`Time: <b>${ftime(refs.finTime)}</b>`,`Venue: <b>HM's Office</b>`,`Chair: <b>HM</b>`])}
 <h3>Members present</h3>${memTbl('Signature')}
-<p class="j">The meeting started under the Chairmanship of the Headmaster, who welcomed all members. The bills and vouchers placed by the HM were examined and the Committee unanimously resolved to approve the following payments:</p>
-${details(rows)}${tbl(rows)}${remNote(rows)}
+<p class="j">The meeting was held under the Chairmanship of the Headmaster. After examining the bills and vouchers placed by the HM, the Committee unanimously resolved as follows:</p>
+${details(rows)}${totLine(rows)}${remNote(rows)}
 ${m.length?`<p class="j"><b>MDM (Point${m.length>1?'s':''} ${m.join(', ')}):</b> ${mdmPeriods(rows)?'Payment for '+esc(mdmPeriods(rows))+'. ':''}${MDM_NOTE}</p>`:''}
 ${rows.some(r=>!isMDM(r))?`<p class="j">Payments other than MDM are recommended to the HOI for report and to the Administrator for approval.</p>`:''}
 <div class="sign"><div>Prepared By<br><br>______________</div><div>Checked By<br><br>______________</div><div>Prabir Kumar Dangar<br>HM / Chairperson</div></div></section>`}
@@ -1383,12 +1564,12 @@ ${meta([`Order No.: <b>${ref('admn')}</b>`],[`Finance Sub-Committee: <b>${ref('f
 <p class="j">On the recommendation of the Finance Sub-Committee and the report of the HOI, the following cheques are passed and approved for payment to the respective beneficiaries.</p>
 ${details(rows)}${tbl(rows)}${remNote(rows)}
 <div class="sign"><div>Prepared By<br><br>______________</div><div><b>ADMINISTRATOR</b><br>${SCHOOL}</div></div></section>`}
-function dMdmSlip(rows){let g=0;const body=rows.map((r,i)=>{const a=Number(r.amount)||0;g+=a;return `<tr><td class="c">${i+1}</td><td class="c">${i+1}a–${i+1}d</td><td><b>${esc(r.to)}</b></td><td>${esc(r.chNo)}<br>dt. ${fd(r.dated)}</td><td class="r"><b>${money(a)}</b></td><td>${esc(numToWords(Math.floor(a)))}</td><td></td></tr>`}).join('');
+function dMdmSlip(rows){let g=0;const body=rows.map((r,i)=>{const a=Number(r.amount)||0;g+=a;return `<tr><td class="c">${i+1}</td><td><b>${esc(r.to)}</b></td><td>${esc(r.chNo)}<br>dt. ${fd(r.dated)}</td><td class="r"><b>${money(a)}</b></td><td>${esc(numToWords(Math.floor(a)))}</td><td></td></tr>`}).join('');
   return `<section class="doc full">${lh()}<h2 class="dt">PAYMENT ORDER — MDM FUND (COMMON)</h2>
 ${meta([`Meeting No.: <b>${ref('fin')}</b>`,`Payment Order Sl.: <b>MDM / ${rows.length} cheque(s)</b>`],[`Debit A/C: <b>MDM Fund — A/C No. ${esc(acNo(rows[0].acc))}</b>`,`Issued by: <b>Finance Sub-Committee</b>`])}
 <p class="j">The Finance Sub-Committee, after checking the bills and vouchers, has sanctioned the MDM payments below${mdmPeriods(rows)?' for '+esc(mdmPeriods(rows)):''} and ordered issue of the cheque(s) to the payees. No separate HOI Report / Administrator Order is required.</p>
 ${details(rows)}
-<table><colgroup><col style="width:5%"><col style="width:9%"><col style="width:19%"><col style="width:14%"><col style="width:12%"><col style="width:23%"><col style="width:18%"></colgroup><thead><tr><th>Sl</th><th>Ref. Pt.</th><th>Payee</th><th>Cheque No. &amp; Date</th><th>Amount (₹)</th><th>Amount in words</th><th>Recipient's Signature</th></tr></thead><tbody>${body}<tr><td colspan="4" class="r"><b>TOTAL</b></td><td class="r"><b>${money(g)}</b></td><td colspan="2"><b>${esc(numToWords(Math.floor(g)))}</b></td></tr></tbody></table>
+<table><colgroup><col style="width:5%"><col style="width:26%"><col style="width:17%"><col style="width:14%"><col style="width:22%"><col style="width:16%"></colgroup><thead><tr><th>Sl</th><th>Payee</th><th>Cheque No. &amp; Date</th><th>Amount (₹)</th><th>Amount in words</th><th>Recipient's Signature</th></tr></thead><tbody>${body}<tr><td colspan="3" class="r"><b>TOTAL</b></td><td class="r"><b>${money(g)}</b></td><td colspan="2"><b>${esc(numToWords(Math.floor(g)))}</b></td></tr></tbody></table>
 <div class="foot"><div style="flex:1"><h3>Finance Sub-Committee — signatures</h3>${memTbl('Signature')}</div><div class="seal">SEAL</div></div></section>`}
 function dSlips(rows){const h=rows.map((r,i)=>{const sl=String(i+1).padStart(2,'0'),a=Number(r.amount)||0;
   return `<div class="slip"><div class="c"><span class="bn">PAYMENT ORDER</span></div>
