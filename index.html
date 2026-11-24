@@ -1524,7 +1524,9 @@ function itemsRender(){const L=$('itList'),tot=itemsTotal(),td='style="border:1p
   if(Math.abs(d)<0.005){n.style.color='#15803D';n.textContent='✔ items total matches cheque amount'}else{n.style.color='#B91C1C';n.textContent='Cheque ₹'+money(c)+' vs items ₹'+money(tot)+' — difference ₹'+money(d)}}
 /* ===== Fetch unpaid (negative balance) payments from the Cash Book (cash_auditable: cashbook/<fund>/entries) ===== */
 let cbUnpaid=[];
-async function cbFetchUnpaid(){const fund=$('cbFund').value,note=$('cbNote'),box=$('cbBox');note.style.color='';note.textContent='Fetching…';box.innerHTML='';cbFillItems([]);
+const fmtDMY=d=>fd(d);
+async function cbFetchUnpaid(){try{await cbFetchUnpaid0()}catch(e){console.error(e);const n=$('cbNote');n.style.color='#B91C1C';n.textContent='Error: '+(e.message||e)}}
+async function cbFetchUnpaid0(){const fund=$('cbFund').value,note=$('cbNote'),box=$('cbBox');note.style.color='';note.textContent='Fetching…';box.innerHTML='';cbFillItems([]);
   if(!user){note.style.color='#B91C1C';note.textContent='Please sign in first (top right), then fetch again.';return}
   let rows;try{
     const snap=await Promise.race([db.collection('cashbook').doc(fund).collection('entries').get({source:'server'}),new Promise((_,rej)=>setTimeout(()=>rej(new Error('timed out after 15 s — check internet / Firestore rules for cashbook/'+fund+'/entries')),15000))]);
