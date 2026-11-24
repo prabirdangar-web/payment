@@ -154,6 +154,12 @@ details.more{margin-top:6px}details.more summary{cursor:pointer;color:var(--blue
           <button type="button" class="btn sm" onclick="itemAdd()">➕ Add</button>
           <button type="button" class="btn sm ghost" onclick="itemsClear()">Clear items</button>
         </div>
+        <div class="row" style="margin-top:6px">
+          <select id="cbFund" style="width:auto"><option value="development">Development</option><option value="ssm">SSM</option><option value="hostel">Hostel Fund</option><option value="vocational">Vocational</option><option value="mdm">MDM</option></select>
+          <button type="button" class="btn sm green" onclick="cbFetchUnpaid()">📥 Fetch unpaid (−ve balance) from Cash Book</button>
+          <span class="hint" id="cbNote"></span>
+        </div>
+        <div id="cbBox" style="margin-top:6px"></div>
         <div id="itChips" class="row" style="margin-top:6px;gap:6px"></div>
         <div id="itList" style="margin-top:6px"></div>
         <div class="row" style="margin-top:6px">
@@ -1517,6 +1523,33 @@ function itemsRender(){const L=$('itList'),tot=itemsTotal(),td='style="border:1p
   if(!$('fTo').value.trim())$('fTo').value='To Various Payees through HM';
   const c=parseFloat($('fAmt').value)||0,d=c-tot;
   if(Math.abs(d)<0.005){n.style.color='#15803D';n.textContent='✔ items total matches cheque amount'}else{n.style.color='#B91C1C';n.textContent='Cheque ₹'+money(c)+' vs items ₹'+money(tot)+' — difference ₹'+money(d)}}
+/* ===== Fetch unpaid (negative balance) payments from the Cash Book (cash_auditable: cashbook/<fund>/entries) ===== */
+let cbUnpaid=[];
+async function cbFetchUnpaid(){const fund=$('cbFund').value,note=$('cbNote'),box=$('cbBox');note.style.color='';note.textContent='Fetching…';box.innerHTML='';
+  let rows;try{const snap=await db.collection('cashbook').doc(fund).collection('entries').get();rows=snap.docs.map(d=>({id:d.id,...d.data()}))}
+  catch(e){note.style.color='#B91C1C';note.textContent='Could not read the Cash Book: '+(e.message||e);return}
+  const ts=x=>x.createdAt&&x.createdAt.toMillis?x.createdAt.toMillis():0,dk=d=>/^\d{4}-\d{2}-\d{2}$/.test(d||'')?d:'';
+  rows.sort((a,b)=>dk(a.date).localeCompare(dk(b.date))||ts(a)-ts(b));
+  let bal=0,start=0;rows.forEach((e,i)=>{bal+=(Number(e.received)||0)-(Number(e.payment)||0);e._b=bal;if(bal>=-0.005)start=i+1});
+  if(bal>=-0.005){note.style.color='#15803D';note.textContent='Cash Book balance is ₹'+money(bal)+' — nothing unpaid (no negative balance).';return}
+  const stretch=rows.slice(start),def=-bal;
+  cbUnpaid=stretch.filter(e=>(Number(e.payment)||0)>0).map(e=>({date:e.date,vno:e.vno||'',name:String(e.particulars||'').replace(/\s+/g,' ').trim(),amt:Number(e.payment)||0,b:e._b}));
+  const rcv=stretch.reduce((t,e)=>t+(Number(e.received)||0),0);
+  note.style.color='#B91C1C';note.textContent='Cash Book balance ₹'+money(bal)+' (unpaid ₹'+money(def)+'), negative since '+fmtDMY(stretch[0].date);
+  const td='style="border:1px solid #ccc;padding:2px 6px';
+  box.innerHTML='<div class="hint"><b>Payments in the negative stretch</b> — tick the ones to recover by this cheque'+(rcv>0?' (receipts of ₹'+money(rcv)+' inside this stretch are already adjusted in the unpaid figure)':'')+'</div>'
+   +'<table style="width:100%;border-collapse:collapse"><tbody>'+cbUnpaid.map((x,i)=>`<tr><td ${td};width:28px"><input type="checkbox" class="cbTick" data-i="${i}" checked onchange="cbSum()"></td><td ${td};width:90px">${fmtDMY(x.date)}</td><td ${td}">${esc(x.name)}${x.vno?' <span class="hint">V.'+esc(x.vno)+'</span>':''}</td><td ${td};text-align:right;width:100px">${money(x.amt)}</td><td ${td};text-align:right;width:110px;color:#B91C1C">${money(x.b)}</td></tr>`).join('')+'</tbody></table>'
+   +'<div class="row" style="margin-top:6px"><button type="button" class="btn sm" onclick="cbAddTicked()">➕ Add ticked to items</button><button type="button" class="btn sm ghost" onclick="cbTickAll(true)">Tick all</button><button type="button" class="btn sm ghost" onclick="cbTickAll(false)">Untick all</button><span class="hint" id="cbSumNote" style="font-weight:600"></span></div>';
+  cbSum()}
+function cbTickAll(v){document.querySelectorAll('.cbTick').forEach(c=>c.checked=v);cbSum()}
+function cbSum(){let t=0;document.querySelectorAll('.cbTick').forEach(c=>{if(c.checked)t+=cbUnpaid[+c.dataset.i].amt});const n=$('cbSumNote');if(n)n.textContent='Ticked ₹'+money(t)}
+function cbAddTicked(){let k=0;const cat=$('itCat').value.trim();
+  document.querySelectorAll('.cbTick').forEach(c=>{if(!c.checked)return;const x=cbUnpaid[+c.dataset.i];
+    if(itemsArr.some(y=>y.name.toLowerCase()===x.name.toLowerCase()&&Math.abs(y.amt-x.amt)<0.005))return;
+    itemsArr.push({cat,name:x.name,amt:x.amt});k++});
+  if(!k){alert('Nothing new to add (nothing ticked, or already in the items list).');return}
+  $('cbBox').innerHTML='';$('cbNote').style.color='#15803D';$('cbNote').textContent=k+' item(s) added from the Cash Book.';
+  itemsRender();itemRefreshSuggest()}
 function suggestChNo(force){if(editId)return;const acc=accVal();if(!acc)return;if($('fChNo').value&&!force)return;
   let max=0,w=6;entries.filter(e=>e.acc===acc).forEach(e=>{const dg=String(e.chNo||'').replace(/\D/g,'');if(dg&&parseInt(dg,10)>=max){max=parseInt(dg,10);w=dg.length}});
   $('fChNo').value=max?String(max+1).padStart(w,'0'):''}
