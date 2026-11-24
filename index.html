@@ -155,7 +155,7 @@ details.more{margin-top:6px}details.more summary{cursor:pointer;color:var(--blue
           <button type="button" class="btn sm ghost" onclick="itemsClear()">Clear items</button>
         </div>
         <div class="row" style="margin-top:6px">
-          <select id="cbFund" style="width:auto"><option value="development">Development</option><option value="ssm">SSM</option><option value="hostel">Hostel Fund</option><option value="vocational">Vocational</option><option value="mdm">MDM</option></select>
+          <select id="cbFund" style="width:auto" onchange="cbFetchUnpaid()"><option value="development">Development</option><option value="ssm">SSM</option><option value="hostel">Hostel Fund</option><option value="vocational">Vocational</option><option value="mdm">MDM</option></select>
           <button type="button" class="btn sm green" onclick="cbFetchUnpaid()">📥 Fetch unpaid (−ve balance) from Cash Book</button>
           <span class="hint" id="cbNote"></span>
         </div>
@@ -1495,9 +1495,12 @@ function itemParseHist(){itemHist={};const re=/([A-Za-z][A-Za-z .&\/']{1,40}?)\s
   (entries||[]).forEach(e=>{const t=String(e.purpose||'');if(/payee-?wise\s*:/i.test(t))return;let m;re.lastIndex=0;while((m=re.exec(t))){const n=m[1].trim().replace(/^(and|&)\s+/i,'');if(n.length<2||/total|cheque|cash|month|fund|per\b/i.test(n))continue;const h=itemHist[n]||(itemHist[n]={n:0,amt:''});h.n++;h.amt=m[2].replace(/,/g,'')}});
   try{const sv=JSON.parse(localStorage.getItem('tfhsItemHist')||'{}');Object.keys(sv).forEach(k=>{const h=itemHist[k]||(itemHist[k]={n:0,amt:''});h.n+=sv[k].n||0;if(sv[k].amt)h.amt=sv[k].amt})}catch(e){}
   ITEM_DEFAULTS.forEach(k=>{if(!itemHist[k])itemHist[k]={n:0,amt:''}})}
-function itemRefreshSuggest(){const c=$('itChips');if(c)c.innerHTML='';const l=$('itemList');if(l)l.innerHTML='';$('itCatList').innerHTML=CAT_DEFAULTS.map(n=>`<option value="${esc(n)}">`).join('')}
+function itemRefreshSuggest(){const c=$('itChips');if(c)c.innerHTML='';$('itCatList').innerHTML=CAT_DEFAULTS.map(n=>`<option value="${esc(n)}">`).join('')}
 function itemChip(n){$('itName').value=n;$('itAmt').value='';itemPickAmt();$('itAmt').focus();$('itAmt').select()}
-function itemPickAmt(){}
+let cbItemAmt={};
+function cbFillItems(list){cbItemAmt={};(list||[]).forEach(x=>{if(x.name&&!(x.name in cbItemAmt))cbItemAmt[x.name]=x.amt});
+  const l=$('itemList');if(l)l.innerHTML=Object.keys(cbItemAmt).map(n=>`<option value="${esc(n)}">`).join('')}
+function itemPickAmt(){const a=cbItemAmt[$('itName').value.trim()];if(a&&!$('itAmt').value)$('itAmt').value=a}
 function itemAdd(){const name=$('itName').value.trim(),amt=parseFloat($('itAmt').value),cat=$('itCat').value.trim();
   if(!name||!(amt>0)){alert('Enter the item name and its amount.');return}
   itemsArr.push({cat,name,amt});
@@ -1521,7 +1524,7 @@ function itemsRender(){const L=$('itList'),tot=itemsTotal(),td='style="border:1p
   if(Math.abs(d)<0.005){n.style.color='#15803D';n.textContent='✔ items total matches cheque amount'}else{n.style.color='#B91C1C';n.textContent='Cheque ₹'+money(c)+' vs items ₹'+money(tot)+' — difference ₹'+money(d)}}
 /* ===== Fetch unpaid (negative balance) payments from the Cash Book (cash_auditable: cashbook/<fund>/entries) ===== */
 let cbUnpaid=[];
-async function cbFetchUnpaid(){const fund=$('cbFund').value,note=$('cbNote'),box=$('cbBox');note.style.color='';note.textContent='Fetching…';box.innerHTML='';
+async function cbFetchUnpaid(){const fund=$('cbFund').value,note=$('cbNote'),box=$('cbBox');note.style.color='';note.textContent='Fetching…';box.innerHTML='';cbFillItems([]);
   if(!user){note.style.color='#B91C1C';note.textContent='Please sign in first (top right), then fetch again.';return}
   let rows;try{
     const snap=await Promise.race([db.collection('cashbook').doc(fund).collection('entries').get({source:'server'}),new Promise((_,rej)=>setTimeout(()=>rej(new Error('timed out after 15 s — check internet / Firestore rules for cashbook/'+fund+'/entries')),15000))]);
@@ -1534,6 +1537,7 @@ async function cbFetchUnpaid(){const fund=$('cbFund').value,note=$('cbNote'),box
   if(bal>=-0.005){note.style.color='#15803D';note.textContent='Cash Book balance is ₹'+money(bal)+' — nothing unpaid (no negative balance).';return}
   const stretch=rows.slice(start),def=-bal;
   cbUnpaid=stretch.filter(e=>(Number(e.payment)||0)>0).map(e=>({date:e.date,vno:e.vno||'',name:String(e.particulars||'').replace(/\s+/g,' ').trim(),amt:Number(e.payment)||0,b:e._b}));
+  cbFillItems(cbUnpaid);
   const rcv=stretch.reduce((t,e)=>t+(Number(e.received)||0),0);
   note.style.color='#B91C1C';note.textContent='Cash Book balance ₹'+money(bal)+' (unpaid ₹'+money(def)+'), negative since '+fmtDMY(stretch[0].date);
   const td='style="border:1px solid #ccc;padding:2px 6px';
