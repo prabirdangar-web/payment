@@ -145,6 +145,24 @@ details.more{margin-top:6px}details.more summary{cursor:pointer;color:var(--blue
           <button type="button" class="btn sm" onclick="mdmGenerateClick()">Generate</button>
         </div>
       </div>
+      <div class="vocbox" id="itemBox" style="display:block">
+        <b>🧾 Many small payments on one cheque? Add them one by one</b> <span class="hint">— each item is gathered automatically into the Purpose sentence and the cheque total</span>
+        <div class="row" style="margin-top:6px">
+          <input type="text" id="itCat" list="itCatList" placeholder="Group (optional) e.g. Lab &amp; Material Charges" style="width:240px">
+          <input type="text" id="itName" list="itemList" placeholder="Item e.g. Toner" style="width:200px" oninput="itemPickAmt()" onkeydown="if(event.key==='Enter'){event.preventDefault();$('itAmt').focus()}">
+          <input type="number" id="itAmt" step="any" min="0" placeholder="Amount" style="width:110px" onkeydown="if(event.key==='Enter'){event.preventDefault();itemAdd()}">
+          <button type="button" class="btn sm" onclick="itemAdd()">➕ Add</button>
+          <button type="button" class="btn sm ghost" onclick="itemsClear()">Clear items</button>
+        </div>
+        <div id="itChips" class="row" style="margin-top:6px;gap:6px"></div>
+        <div id="itList" style="margin-top:6px"></div>
+        <div class="row" style="margin-top:6px">
+          <label class="hint"><input type="checkbox" id="itAuto" checked> Set cheque Amount = items total</label>
+          <label class="hint"><input type="checkbox" id="itPer" onchange="itemsRender()"> Write items as “Item ₹amt”</label>
+          <span class="hint" id="itNote" style="font-weight:600"></span>
+        </div>
+        <datalist id="itemList"></datalist><datalist id="itCatList"></datalist>
+      </div>
       <div class="row" style="margin-top:14px;justify-content:flex-end">
         <button type="button" class="btn ghost" onclick="resetForm()">Reset</button>
         <button type="button" class="btn red" id="cancelEdit" style="display:none" onclick="resetForm()">Cancel edit</button>
@@ -632,13 +650,13 @@ const WT_INJECT = () => '<style>' + WT_CSS + '</style>' + WT_HTML + '<script>(' 
         const recText = `Other Recurring Expenses items: ` + itemsText(aggregate("oth"));
         let text;
         if (useHon && useRec) {
-            text = `Payment towards Vocational (VOC) expenses for ${period}, net ${inr(total)} (${perMonth(totVals)}), in two categories: ` +
+            text = `To meet up expenditure for Vocational (VOC) expenses for ${period}, net ${inr(total)} (${perMonth(totVals)}), in two categories: ` +
                 `(A) Administrative Honorarium ${inr(sum(honVals))}, ${honText}; ` +
                 `(B) Other Recurring Expenses ${inr(sum(recVals))}, ${recText}${ded ? "; less deduction " + inr(ded) : ""}.`;
         } else if (useHon) {
-            text = `Payment towards Vocational (VOC) Administrative Honorarium for ${period}, total ${inr(total)} (${perMonth(honVals)}), ${honText}.`;
+            text = `To meet up expenditure for Vocational (VOC) Administrative Honorarium for ${period}, total ${inr(total)} (${perMonth(honVals)}), ${honText}.`;
         } else {
-            text = `Payment towards Vocational (VOC) Other Recurring Expenses for ${period}, total ${inr(total)} (${perMonth(recVals)}), ${recText}.`;
+            text = `To meet up expenditure for Vocational (VOC) Other Recurring Expenses for ${period}, total ${inr(total)} (${perMonth(recVals)}), ${recText}.`;
         }
         document.getElementById("fPur").value = text;
         document.getElementById("fAmt").value = total.toFixed(2); updWords();
@@ -1457,23 +1475,59 @@ regRef.onSnapshot(s=>{const d=s.data()||{};
 function fillLists(){
   const pe=[...new Set([...PAYEES,...entries.map(e=>e.to).filter(Boolean)])].sort();
   $('payeeList').innerHTML=pe.map(p=>`<option value="${esc(p)}">`).join('');
-  $('purposeList').innerHTML=purposeHistory.map(p=>`<option value="${esc(p)}">`).join('');
+  $('purposeList').innerHTML=purposeHistory.map(p=>`<option value="${esc(p)}">`).join('');try{itemRefreshSuggest()}catch(e){}
   const f=$('fFilter'),cur=f.value;const heads=[...new Set(entries.map(e=>e.acc).filter(Boolean))].sort();
   f.innerHTML='<option value="">All A/C heads</option>'+heads.map(h=>`<option value="${esc(h)}">${esc(h)}</option>`).join('');f.value=cur}
 function updWords(){const v=$('fAmt').value;$('fWords').value=v===''?'':numToWords(parseFloat(v))}
 function accVal(){const v=$('fAcc').value;return v==='MANUAL'?$('fAccMan').value.trim():v}
 function onAccChange(){$('fAccMan').style.display=$('fAcc').value==='MANUAL'?'block':'none';toggleVocAuto();if(!editId)suggestChNo(true)}
+/* ===== Small payments on one cheque: add one by one -> auto purpose sentence ===== */
+const ITEM_DEFAULTS=['Roof Cleaning','Tree Trimming','Premises Cleaning','Jharu','Stamp','Toner','TA','Tiffin','Band Party','Cook','Decorator','Flex/Flowers','Ghas Mora','Xerox Paper','Printing','Stationery','Electricity Charges','Office Expense','Repair & Maintenance','Sweets & Materials'];
+const CAT_DEFAULTS=['Lab & Material Charges','Other Misc Expenses','Printing & Stationery','Repair & Maintenance','Programme / Function Expenses','Office Expenses'];
+let itemsArr=[],itemHist={};
+function itemParseHist(){itemHist={};const re=/([A-Za-z][A-Za-z .&\/']{1,40}?)\s*[-–:₹]\s*(?:Rs\.?\s*)?(\d[\d,]*(?:\.\d+)?)/g;
+  (entries||[]).forEach(e=>{const t=String(e.purpose||'');if(/payee-?wise\s*:/i.test(t))return;let m;re.lastIndex=0;while((m=re.exec(t))){const n=m[1].trim().replace(/^(and|&)\s+/i,'');if(n.length<2||/total|cheque|cash|month|fund|per\b/i.test(n))continue;const h=itemHist[n]||(itemHist[n]={n:0,amt:''});h.n++;h.amt=m[2].replace(/,/g,'')}});
+  try{const sv=JSON.parse(localStorage.getItem('tfhsItemHist')||'{}');Object.keys(sv).forEach(k=>{const h=itemHist[k]||(itemHist[k]={n:0,amt:''});h.n+=sv[k].n||0;if(sv[k].amt)h.amt=sv[k].amt})}catch(e){}
+  ITEM_DEFAULTS.forEach(k=>{if(!itemHist[k])itemHist[k]={n:0,amt:''}})}
+function itemRefreshSuggest(){itemParseHist();const names=Object.keys(itemHist).sort((a,b)=>itemHist[b].n-itemHist[a].n||a.localeCompare(b));
+  $('itemList').innerHTML=names.map(n=>`<option value="${esc(n)}">`).join('');
+  $('itCatList').innerHTML=CAT_DEFAULTS.map(n=>`<option value="${esc(n)}">`).join('');
+  const used=new Set(itemsArr.map(x=>x.name.toLowerCase()));
+  $('itChips').innerHTML='<span class="hint">Suggestions:</span>'+names.filter(n=>!used.has(n.toLowerCase())).slice(0,14).map(n=>`<button type="button" class="btn sm ghost" onclick="itemChip(this.dataset.n)" data-n="${esc(n)}">${esc(n)}${itemHist[n].amt?' ('+itemHist[n].amt+')':''}</button>`).join('')}
+function itemChip(n){$('itName').value=n;$('itAmt').value='';itemPickAmt();$('itAmt').focus();$('itAmt').select()}
+function itemPickAmt(){const h=itemHist[$('itName').value.trim()];if(h&&h.amt&&!$('itAmt').value)$('itAmt').value=h.amt}
+function itemAdd(){const name=$('itName').value.trim(),amt=parseFloat($('itAmt').value),cat=$('itCat').value.trim();
+  if(!name||!(amt>0)){alert('Enter the item name and its amount.');return}
+  itemsArr.push({cat,name,amt});
+  try{const sv=JSON.parse(localStorage.getItem('tfhsItemHist')||'{}');const h=sv[name]||(sv[name]={n:0});h.n++;h.amt=String(amt);localStorage.setItem('tfhsItemHist',JSON.stringify(sv))}catch(e){}
+  $('itName').value='';$('itAmt').value='';itemsRender();itemRefreshSuggest();$('itName').focus()}
+function itemDel(i){itemsArr.splice(i,1);itemsRender();itemRefreshSuggest()}
+function itemsClear(){itemsArr=[];itemsRender();itemRefreshSuggest()}
+function itemsTotal(){return itemsArr.reduce((t,x)=>t+x.amt,0)}
+function itemsSentence(){if(!itemsArr.length)return '';const per=$('itPer').checked,fmt=n=>Number(n).toLocaleString('en-IN');
+  const item=x=>per?`${x.name} ₹${fmt(x.amt)}`:`${x.name}-${String(x.amt)}`;
+  const groups=[];itemsArr.forEach(x=>{let g=groups.find(y=>y.cat===x.cat);if(!g){g={cat:x.cat,list:[]};groups.push(g)}g.list.push(x)});
+  const body=groups.map(g=>(g.cat?g.cat+': ':'')+g.list.map(item).join(', ')).join('; ');
+  return itemsArr.length===1?`To meet up expenditure for ${itemsArr[0].name}, total ₹${fmt(itemsTotal())}.`:`To meet up expenditure for the following small expenses, total ₹${fmt(itemsTotal())} - ${body}.`}
+function itemsRender(){const L=$('itList'),tot=itemsTotal(),td='style="border:1px solid #ccc;padding:2px 6px';
+  L.innerHTML=itemsArr.length?'<table style="width:100%;border-collapse:collapse"><tbody>'+itemsArr.map((x,i)=>`<tr><td ${td};width:30px">${i+1}</td><td ${td}">${x.cat?'<i>'+esc(x.cat)+'</i> › ':''}${esc(x.name)}</td><td ${td};text-align:right;width:100px">${money(x.amt)}</td><td ${td};width:40px"><button type="button" class="btn sm red" onclick="itemDel(${i})">✕</button></td></tr>`).join('')+`<tr><td colspan="2" style="padding:2px 6px;text-align:right"><b>Items total</b></td><td style="padding:2px 6px;text-align:right"><b>${money(tot)}</b></td><td></td></tr></tbody></table>`:'';
+  const n=$('itNote');if(!itemsArr.length){n.textContent='';return}
+  $('fPur').value=itemsSentence();
+  if($('itAuto').checked){$('fAmt').value=tot.toFixed(2);updWords()}
+  if(!$('fTo').value.trim())$('fTo').value='To Various Payees through HM';
+  const c=parseFloat($('fAmt').value)||0,d=c-tot;
+  if(Math.abs(d)<0.005){n.style.color='#15803D';n.textContent='✔ items total matches cheque amount'}else{n.style.color='#B91C1C';n.textContent='Cheque ₹'+money(c)+' vs items ₹'+money(tot)+' — difference ₹'+money(d)}}
 function suggestChNo(force){if(editId)return;const acc=accVal();if(!acc)return;if($('fChNo').value&&!force)return;
   let max=0,w=6;entries.filter(e=>e.acc===acc).forEach(e=>{const dg=String(e.chNo||'').replace(/\D/g,'');if(dg&&parseInt(dg,10)>=max){max=parseInt(dg,10);w=dg.length}});
   $('fChNo').value=max?String(max+1).padStart(w,'0'):''}
-function resetForm(keep){editId=null;window.mdmExtra=[];if($('mdmDhirenWrap'))$('mdmDhirenWrap').style.display='none';const acc=$('fAcc').value;$('entryForm').reset();
+function resetForm(keep){editId=null;try{itemsArr=[];$('itList').innerHTML='';$('itNote').textContent=''}catch(e){}window.mdmExtra=[];if($('mdmDhirenWrap'))$('mdmDhirenWrap').style.display='none';const acc=$('fAcc').value;$('entryForm').reset();
   $('fDoi').value=$('fDated').value=todayISO();
   if(keep&&acc){$('fAcc').value=acc;onAccChange()}else{$('fAccMan').style.display='none';toggleVocAuto()}
   $('fWords').value='';$('editNote').textContent='';$('saveBtn').textContent='💾 Save to Register';$('cancelEdit').style.display='none'}
 function saveEntry(e){e.preventDefault();if(!needAuth())return;
   const acc=accVal(),chNo=$('fChNo').value.trim(),amt=parseFloat($('fAmt').value);
   if(!acc||!chNo||!Number.isFinite(amt)){alert('Please fill A/C, cheque no. and amount.');return}
-  const data={doi:$('fDoi').value,acc,chNo,dated:$('fDated').value,amount:amt.toFixed(2),to:$('fTo').value.trim(),purpose:$('fPur').value.trim(),remarks:$('fRem').value.trim(),inWords:numToWords(amt)};
+  const data={doi:$('fDoi').value,acc,chNo,dated:$('fDated').value,amount:amt.toFixed(2),to:$('fTo').value.trim(),purpose:normPurpose($('fPur').value),remarks:$('fRem').value.trim(),inWords:numToWords(amt)};
   let list;
   if(editId){list=entries.map(x=>x.id===editId?{...x,...data,updatedAt:new Date().toISOString(),updatedBy:user.email}:x)}
   else{
@@ -1531,7 +1585,7 @@ function render(){const rows=visibleRows();let tot=0;
   const last=entries.slice().sort((a,b)=>(Number(b.sl)||0)-(Number(a.sl)||0))[0];$('stLast').textContent=last?`Sl ${last.sl} · ${fd(last.doi)}`:'—';
   $('all').checked=rows.length>0&&rows.every(r=>selected.has(r.id))}
 function printRegister(){const rows=visibleRows().sort((a,b)=>(Number(a.sl)||0)-(Number(b.sl)||0));const t=rows.reduce((s,e)=>s+(Number(e.amount)||0),0);
-  const body=rows.map(e=>`<tr><td>${esc(e.sl)}</td><td>${fd(e.doi)}</td><td>${esc(e.acc)}</td><td>${esc(e.chNo)}</td><td>${fd(e.dated)}</td><td class="r">${money(e.amount)}</td><td>${esc(e.to)}</td><td>${esc(e.purpose)}<br><i>${esc(e.inWords||numToWords(e.amount))}</i>${e.remarks?`<br><b>Remarks:</b> ${esc(e.remarks)}`:''}</td></tr>`).join('');
+  const body=rows.map(e=>`<tr><td>${esc(e.sl)}</td><td>${fd(e.doi)}</td><td>${esc(e.acc)}</td><td>${esc(e.chNo)}</td><td>${fd(e.dated)}</td><td class="r">${money(e.amount)}</td><td>${esc(e.to)}</td><td>${esc(purFull(e))}<br><i>${esc(e.inWords||numToWords(e.amount))}</i>${e.remarks?`<br><b>Remarks:</b> ${esc(e.remarks)}`:''}</td></tr>`).join('');
   const css=`@page{size:A4 landscape;margin:9mm}body{font-family:Arial,sans-serif;font-size:10pt;color:#000;margin:0}h2{text-align:center;margin:0 0 3px;font-size:14pt}p{text-align:center;margin:0 0 8px;font-size:10pt}table{width:100%;border-collapse:collapse;table-layout:fixed}th,td{border:1px solid #000;padding:3px 4px;vertical-align:top;word-wrap:break-word}th{background:#eee}thead{display:table-header-group}tr{break-inside:avoid}.r{text-align:right;white-space:nowrap}.bar{position:fixed;top:8px;right:10px}@media print{.bar{display:none}}`;
   const w=window.open('','_blank');if(!w){alert('Please allow pop-ups.');return}
   w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Cheque Issue Register</title><style>${css}</style></head><body><button class="bar" onclick="print()">🖨 Print</button><h2>CHEQUE ISSUE REGISTER</h2><p>${SCHOOL} — Entries: ${rows.length} — Total: ₹${money(t)}</p><table><colgroup><col style="width:3.5%"><col style="width:6.5%"><col style="width:9%"><col style="width:6.5%"><col style="width:6.5%"><col style="width:8.5%"><col style="width:13%"><col style="width:46.5%"></colgroup><thead><tr><th>Sl</th><th>DOI</th><th>A/C No.</th><th>Ch No.</th><th>Dated</th><th>Amount ₹</th><th>To</th><th>Particulars</th></tr></thead><tbody>${body}</tbody></table></body></html>`);w.document.close()}
@@ -1566,9 +1620,13 @@ function openDoc(title,inner){const w=window.open('','_blank');if(!w){alert('Ple
 const lh=()=>`<div class="lh"><b>${SCHOOL}</b><span>P.O. &amp; Block: Taldangra · Dist.: Bankura · PIN 722152</span></div>`;
 const sign=(a,b)=>`<div class="sign"><div>Prepared By<br><br>______________</div><div>${a}<br>${b}</div></div>`;
 const meta=(a,b)=>`<div class="meta"><div>${a.map(x=>`<span>${x}</span>`).join('')}</div><div>${b.map(x=>`<span>${x}</span>`).join('')}</div></div>`;
-function shortPur(r){let p=String(r.purpose||'').replace(/\s+/g,' ').trim().replace(/^payment\s+(towards|for|of)\s+/i,'');return p.replace(/[.\s]+$/,'')}
+function shortPur(r){let p=String(r.purpose||'').replace(/\s+/g,' ').trim().replace(/^(payment\s+(towards|for|of)|towards|to\s+meet\s+up\s+(the\s+)?expenditure\s+(for|of|towards))\s+/i,'');return p.replace(/[.\s]+$/,'')}
+/* every purpose reads "To meet up expenditure for ..." (old entries are converted on the fly) */
+function purFull(r,lower){return (lower?'to ':'To ')+'meet up expenditure for '+shortPur(r)}
+function normPurpose(v){v=String(v||'').replace(/\s+/g,' ').trim();if(!v)return v;if(/^to\s+meet\s+up\s+(the\s+)?expenditure/i.test(v))return v;
+  return 'To meet up expenditure for '+v.replace(/^(payment\s+(towards|for|of)|towards)\s+/i,'')}
 function details(rows){let h='<div class="pts">';rows.forEach((r,i)=>{const a=Number(r.amount)||0;
-  h+=`<p class="rs"><b>${i+1}.</b> Resolved that <b>₹ ${money(a)}</b> (${esc(numToWords(Math.floor(a)))}) be paid to <b>${esc(r.to)}</b> by Cheque No. <b>${esc(r.chNo)}</b> dated <b>${fd(r.dated)}</b>, debited to the <b>${esc(fundName(r.acc))} Fund</b> (A/C No. ${esc(acNo(r.acc))}), towards ${esc(shortPur(r))}.</p>`});return h+'</div>'}
+  h+=`<p class="rs"><b>${i+1}.</b> Resolved that <b>₹ ${money(a)}</b> (${esc(numToWords(Math.floor(a)))}) be paid to <b>${esc(r.to)}</b> by Cheque No. <b>${esc(r.chNo)}</b> dated <b>${fd(r.dated)}</b>, debited to the <b>${esc(fundName(r.acc))} Fund</b> (A/C No. ${esc(acNo(r.acc))}), ${esc(purFull(r,true))}.</p>`});return h+'</div>'}
 /* Resolution only: payee-wise table with Cheque / Cash split, checked against the cheque amount */
 function resPayees(r){
   const num=s=>parseFloat(String(s).replace(/,/g,''))||0,out=[];
@@ -1597,7 +1655,7 @@ function resCashTbl(r,a){
    +`<tr><td colspan="2" class="r"><b>TOTAL</b></td><td class="r"><b>${money(tot)}</b></td></tr></tbody></table>`
    +`<p class="sp j">Total <b>Rs. ${money(tot)}</b> (${esc(numToWords(Math.floor(tot)))}) — ${okm?'matched with the cheque amount ✔':`<span style="color:#B91C1C">does not match the cheque amount ₹ ${money(a)} (difference ₹ ${money(a-tot)})</span>`}.</p>`}
 function resDetails(rows){let h='<div class="pts">';rows.forEach((r,i)=>{const a=Number(r.amount)||0;
-  h+=`<p class="rs"><b>${i+1}.</b> Resolved that <b>₹ ${money(a)}</b> (${esc(numToWords(Math.floor(a)))}) be paid to <b>${esc(r.to)}</b> by Cheque No. <b>${esc(r.chNo)}</b> dated <b>${fd(r.dated)}</b>, debited to the <b>${esc(fundName(r.acc))} Fund</b> (A/C No. ${esc(acNo(r.acc))}), towards ${esc(shortPur(r))}.</p>`;
+  h+=`<p class="rs"><b>${i+1}.</b> Resolved that <b>₹ ${money(a)}</b> (${esc(numToWords(Math.floor(a)))}) be paid to <b>${esc(r.to)}</b> by Cheque No. <b>${esc(r.chNo)}</b> dated <b>${fd(r.dated)}</b>, debited to the <b>${esc(fundName(r.acc))} Fund</b> (A/C No. ${esc(acNo(r.acc))}), ${esc(purFull(r,true))}.</p>`;
   const p=resPayees(r);if(!p)h+=resCashTbl(r,a);
   if(p){const hasCash=p.some(x=>x.ca>0),sc=p.reduce((t,x)=>t+x.ch,0),sa=p.reduce((t,x)=>t+x.ca,0),st=p.reduce((t,x)=>t+x.tot,0),okm=Math.abs(sc-a)<0.5;
     h+=`<table><colgroup><col style="width:6%"><col style="width:38%"><col style="width:18%"><col style="width:20%"><col style="width:18%"></colgroup><thead><tr><th>Sl</th><th>Payee</th><th>Total ₹</th><th>By Cheque ₹</th><th>By Cash ₹</th></tr></thead><tbody>`
@@ -1624,7 +1682,7 @@ ${meta([`Meeting No.: <b>${ref('fin')}</b>`,`Date of Issue: <b>${fd(todayISO())}
 ${sign('Prabir Kumar Dangar','HM &amp; Convenor')}
 <h3 style="margin-top:34px">Meeting Call Book — Members' Signature</h3>
 <table class="mem"><colgroup><col style="width:7%"><col style="width:33%"><col style="width:25%"><col style="width:35%"></colgroup><thead><tr><th>Sl. No.</th><th>Name of Members</th><th>Designation</th><th>Signature</th></tr></thead><tbody>${MEMBERS.map((m,i)=>`<tr style="height:30px"><td class="c">${i+1}</td><td><b>${m[0]}</b></td><td>${m[1]}</td><td></td></tr>`).join('')}</tbody></table></section>`}
-function mdmPeriods(rows){const o=[];rows.filter(isMDM).forEach(r=>{const x=String(r.purpose||'').match(/MDM\) expenses for (.+?), total/i);if(x&&!o.includes(x[1]))o.push(x[1])});return o.join('; ')}
+function mdmPeriods(rows){const o=[];rows.filter(isMDM).forEach(r=>{const x=String(r.purpose||'').match(/MDM\)(?: expenses)? for (.+?), total/i);if(x&&!o.includes(x[1]))o.push(x[1])});return o.join('; ')}
 function dRes(rows){const m=rows.map((r,i)=>isMDM(r)?i+1:0).filter(Boolean);
   return `<section class="doc">${lh()}<h2 class="dt">RESOLUTIONS ADOPTED — FINANCE SUB-COMMITTEE</h2>
 ${meta([`Meeting No.: <b>${ref('fin')}</b>`,`Held on: <b>${fd(refs.finDate)}</b>`],[`Time: <b>${ftime(refs.finTime)}</b>`,`Venue: <b>HM's Office</b>`,`Chair: <b>HM</b>`])}
@@ -1657,7 +1715,7 @@ function dSlips(rows){const h=rows.map((r,i)=>{const sl=String(i+1).padStart(2,'
 <p style="border:1px solid #000;padding:3px 8px;margin-top:6px"><b>Sl. ${sl}</b> &nbsp; Meeting: ${ref('fin')}${isMDM(r)?'<br>Sanctioned by Finance Sub-Committee (MDM — no HOI / Admn Order required)':`<br>HOI: ${ref('hoi')} &nbsp; Admn Order: ${ref('admn')}`}</p>
 <p>Debit Fund Account: <b>${esc(fundName(r.acc))} Fund</b> (A/C No. ${esc(acNo(r.acc))})</p>
 <p>Authorised Beneficiary: <b>${esc(r.to)}</b></p>
-<table><colgroup><col style="width:52%"><col style="width:26%"><col style="width:22%"></colgroup><thead><tr><th>Particulars</th><th>Cheque No. &amp; Date</th><th>Amount (₹)</th></tr></thead><tbody><tr><td>${esc(r.purpose)}</td><td>${esc(r.chNo)}<br>dt. ${fd(r.dated)}</td><td class="r"><b>${money(a)}</b></td></tr><tr><td colspan="3"><b>In words:</b> ${esc(numToWords(Math.floor(a)))}</td></tr></tbody></table>
+<table><colgroup><col style="width:52%"><col style="width:26%"><col style="width:22%"></colgroup><thead><tr><th>Particulars</th><th>Cheque No. &amp; Date</th><th>Amount (₹)</th></tr></thead><tbody><tr><td>${esc(purFull(r))}</td><td>${esc(r.chNo)}<br>dt. ${fd(r.dated)}</td><td class="r"><b>${money(a)}</b></td></tr><tr><td colspan="3"><b>In words:</b> ${esc(numToWords(Math.floor(a)))}</td></tr></tbody></table>
 <div class="sign" style="margin-top:22px"><div>Administrator</div><div>Headmaster</div></div>
 <div class="cp"><div class="c"><b>RECIPIENT'S ACKNOWLEDGEMENT</b></div>Received Cheque No. <b>${esc(r.chNo)}</b> dated ${fd(r.dated)} for <b>₹ ${money(a)}</b>.<div class="sign" style="margin-top:20px"><div></div><div>Recipient's Signature</div></div></div></div>`});
   let o='';for(let i=0;i<h.length;i+=2)o+=`<section class="doc two">${h[i]}${h[i+1]||''}</section>`;return o}
@@ -1686,7 +1744,7 @@ function voucherPayees(r){
   return null}
 function genVoucher(){const rows=selRows().filter(r=>/\bssm\b/i.test(r.acc)||isMDM(r)||/voc/i.test(r.acc)||voucherPayees(r));if(!rows.length){alert('Tick one or more SSM / MDM / VOC (or multi-payee) cheques first.');return}
   rows.forEach((r,i)=>setTimeout(()=>{const a=Number(r.amount)||0;const cd=String(r.chNo||'')+(r.dated?' dt. '+fd(r.dated):'');
-    const v={voucherDate:r.dated||todayISO(),toWhomPaid:esc(r.to),purpose:esc(r.purpose),amountNum:a||'',amountWords:esc(numToWords(Math.floor(a))),chqDetails:esc(cd),chqType:'A/C Payee Only',remarks:esc(r.remarks||'')};
+    const v={voucherDate:r.dated||todayISO(),toWhomPaid:esc(r.to),purpose:esc(purFull(r)),amountNum:a||'',amountWords:esc(numToWords(Math.floor(a))),chqDetails:esc(cd),chqType:'A/C Payee Only',remarks:esc(r.remarks||'')};
     const p=voucherPayees(r);
     if(p&&p.length){/* several payees on one cheque: every payee gets its own row with a signature box */
       const rem=p.map(x=>x.remarks).filter(Boolean)[0];if(!v.remarks&&rem)v.remarks=esc(rem);
@@ -1722,7 +1780,7 @@ function generateMdmPurpose(){const inr=n=>'₹'+Number(n).toLocaleString('en-IN
   (window.mdmExtra||[]).forEach(x=>{if(x.a){parts.push(`${x.l} ${inr(x.a)}`);tot+=x.a}});
   const xn=$('mdmXName').value.trim(),xa=parseFloat($('mdmXAmt').value)||0;if(xn&&xa){parts.push(`${xn} ${inr(xa)}`);tot+=xa}
   if(!parts.length){alert('Enter at least one payee amount.');return}
-  const per=mdmPeriodText();$('fPur').value=`Payment towards Mid Day Meal (MDM) expenses${per?' for '+per:''}, total ${inr(tot)}, payee-wise: ${parts.join('; ')}.`;
+  const per=mdmPeriodText();$('fPur').value=`To meet up expenditure for Mid Day Meal (MDM)${per?' for '+per:''}, total ${inr(tot)}, payee-wise: ${parts.join('; ')}.`;
   $('fAmt').value=tot.toFixed(2);updWords();
   $('fTo').value=parts.length>1?'To Various Payees through HM':parts[0].replace(/\s*₹.*$/,'')}
 /* read "payee-wise: Name ₹amt; Name ₹amt" (or free text like "Kishor Ghosh Rs 2500") from a bulk MDM cheque's purpose/remarks */
