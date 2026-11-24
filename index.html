@@ -1675,8 +1675,10 @@ function gen(type){const rows=selRows();if(!rows.length){alert('Tick one or more
 function payeeAccFor(name){const n=String(name||'');const mi=MDM_MATCH.findIndex(x=>x.test(n));if(mi>=0&&MDM_DEFAULT_PAYEES[mi])return MDM_DEFAULT_PAYEES[mi].acc||'';
   const k=n.toLowerCase().split(/\s+/).slice(0,2).join(' ');const h=VOCATIONAL_DEFAULT_PAYEES.find(p=>k&&p.name.toLowerCase().indexOf(k)===0);return h?h.acc:''}
 /* every cheque paid to several payees -> list of {name,acc,amount,remarks}; null = single payee */
+function isVocOther(r){const t=String(r.purpose||'')+' '+String(r.to||'');return !/honorarium/i.test(t)&&(/other\s+recurring|training\s+material|electricity|office\s+expense/i.test(t)||/^\s*self\b/i.test(String(r.to||'')))}
 function voucherPayees(r){
   if(isMDM(r)){let p=mdmRows([r]).filter(x=>x.name&&parseFloat(x.amount));if(!p.length)p=MDM_DEFAULT_PAYEES.slice(0,4).map(x=>({...x,amount:''}));return p}
+  if(/voc/i.test(r.acc)&&isVocOther(r))return null;/* Other Recurring / Self-thr cheque = single payee, not the honorarium list */
   if(/voc/i.test(r.acc)){let p=vocRows([r]).filter(x=>x.name&&parseFloat(x.amount));if(!p.length)p=VOCATIONAL_DEFAULT_PAYEES.map(x=>({...x,amount:''}));return p}
   if(/payee-?wise|through|various/i.test(String(r.to||'')+' '+String(r.purpose||''))){
     const p=mdmParse((r.purpose||'')+' '+(r.remarks||'')).filter(x=>x[1]).map(x=>({name:String(x[0]).toUpperCase(),acc:payeeAccFor(x[0]),amount:String(x[1]),remarks:''}));
